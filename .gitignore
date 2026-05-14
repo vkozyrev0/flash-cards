@@ -1,0 +1,5 @@
+deploy/
+_*.json
+*.txt
+.claude/
+.tmp/

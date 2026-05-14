@@ -1,0 +1,21 @@
+{
+  "name": "Ukrainian Flash Cards",
+  "short_name": "FlashCards",
+  "description": "Flashcard study app for Ukrainian vocabulary with translations to Russian, English, and Finnish.",
+  "start_url": "./language-cards.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f4f1ea",
+  "theme_color": "#1c2e5b",
+  "lang": "en",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
