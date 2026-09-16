@@ -13,7 +13,7 @@
     "преміювання": {
       "uk": "преміювання",
       "ru": "премирование",
-      "en": "awarding",
+      "en": "bonus payment",
       "fi": "palkitseminen",
       "addedAt": 1778256487681,
       "categories": [
@@ -35,8 +35,8 @@
     "заохочення": {
       "uk": "заохочення",
       "ru": "поощрение",
-      "en": "promotion",
-      "fi": "edistäminen",
+      "en": "encouragement",
+      "fi": "kannustus",
       "addedAt": 1778256487888,
       "categories": [
         "misc"
@@ -65,8 +65,8 @@
     "мацати": {
       "uk": "мацати",
       "ru": "щупать",
-      "en": "feel",
-      "fi": "tuntea",
+      "en": "to feel by touch",
+      "fi": "tunnustella",
       "addedAt": 1778256488172,
       "categories": [
         "verb",
@@ -76,8 +76,8 @@
     "намацувати": {
       "uk": "намацувати",
       "ru": "нащупывать",
-      "en": "grope",
-      "fi": "hipelöidä",
+      "en": "to grope for",
+      "fi": "tunnustella",
       "addedAt": 1778256488279,
       "categories": [
         "verb",
@@ -109,8 +109,8 @@
     "пляцок": {
       "uk": "пляцок",
       "ru": "площадка",
-      "en": "square",
-      "fi": "neliö",
+      "en": "plot",
+      "fi": "tontti",
       "addedAt": 1778256488570,
       "categories": [
         "noun"
@@ -130,8 +130,8 @@
     "прогулянка": {
       "uk": "прогулянка",
       "ru": "прогулка",
-      "en": "walk",
-      "fi": "kävellä",
+      "en": "a walk",
+      "fi": "kävely",
       "addedAt": 1778256488781,
       "categories": [
         "noun",
@@ -263,7 +263,7 @@
       "uk": "ґудзик",
       "ru": "пуговица",
       "en": "button",
-      "fi": "painiketta",
+      "fi": "nappi",
       "addedAt": 1778256489522,
       "categories": [
         "noun",
@@ -2154,8 +2154,8 @@
     "щодо": {
       "uk": "щодо",
       "ru": "относительно",
-      "en": "of",
-      "fi": "",
+      "en": "regarding",
+      "fi": "koskien",
       "addedAt": 1778261573296,
       "categories": [
         "adverb"
@@ -50819,7 +50819,7 @@
       "uk": "малий розмір файлу",
       "ru": "маленький размер файла",
       "en": "small file size",
-      "fi": "pieni tiedostokoко",
+      "fi": "pieni tiedostokoko",
       "addedAt": 1781300000000,
       "categories": [
         "phrase",
