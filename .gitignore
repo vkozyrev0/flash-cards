@@ -6,6 +6,8 @@ deploy/
 # Scratch / private data files
 _*.json
 *.txt
+# robots.txt is part of the app: it is served and the server enforces the same policy.
+!robots.txt
 
 # OS / editor cruft
 .DS_Store

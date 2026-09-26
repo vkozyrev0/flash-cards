@@ -1,0 +1,9 @@
+# Ukrainian Flash Cards — crawl policy.
+# The app page is small and worth indexing; the card bundle and the translation API are not.
+# The server refuses the same paths for known crawler/bot User-Agents (BOT_POLICY=block).
+User-agent: *
+Disallow: /api/
+Disallow: /ukr-cards-categorized.json
+Disallow: /lexicon.json
+Allow: /
+Crawl-delay: 1
