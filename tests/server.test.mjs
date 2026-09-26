@@ -590,6 +590,56 @@ await test('BOT_POLICY=off leaves crawlers served, and health stays open for mon
   assert.equal(healthAsBot.status, 200, 'a monitoring bot must still reach /api/health');
 });
 
+await test('SERVE_STATIC=0 serves the API only, and keeps robots.txt', async () => {
+  const srv = await startServer({ SERVE_STATIC: '0', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const page = await httpCall(port, '/language-cards.html');
+  assert.equal(page.status, 404, 'the app must not be served by an API-only deployment');
+  assert.match(page.body, /serves only/);
+  const root = await httpCall(port, '/');
+  assert.equal(root.status, 404);
+  const robots = await httpCall(port, '/robots.txt');
+  assert.equal(robots.status, 200, 'robots.txt still declares the API crawl policy');
+  assert.match(robots.body, /Disallow: \/api\//);
+  const health = await httpCall(port, '/api/health');
+  assert.equal(health.status, 200);
+  const tr = await httpCall(port, '/api/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q: 'книга', source: 'uk', target: 'en' }) });
+  assert.equal(tr.status, 200, 'the API keeps working');
+  assert.equal(JSON.parse(tr.body).text, 'book');
+});
+
+await test('a locally-served app can call a remote server (localhost and null origins)', async () => {
+  // ALLOWED_ORIGINS=localhost,null is the API-only deployment default: the app runs from the user's
+  // own machine, so its origin is http://localhost:<any port> or "null" when opened from file://.
+  const srv = await startServer({ ALLOWED_ORIGINS: 'localhost,null', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const body = JSON.stringify({ q: 'книга', source: 'uk', target: 'en' });
+  for (const origin of ['http://localhost:8080', 'http://127.0.0.1:5173', 'https://localhost:3000', 'null']) {
+    const res = await httpCall(port, '/api/translate', { method: 'POST', headers: { 'content-type': 'application/json', origin }, body });
+    assert.equal(res.status, 200, `${origin} should be allowed, got ${res.status} ${res.body.slice(0, 80)}`);
+    assert.equal(res.headers['access-control-allow-origin'], origin, `${origin} must be echoed back`);
+  }
+  const evil = await httpCall(port, '/api/translate', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example' }, body });
+  assert.equal(evil.status, 403, 'a foreign origin must still be refused');
+  const evilLocal = await httpCall(port, '/api/translate', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://localhost.evil.example' }, body });
+  assert.equal(evilLocal.status, 403, 'a lookalike host must not match the localhost token');
+});
+
+await test('originAllowed matches exactly what it claims to', async () => {
+  const { originAllowed } = await import('../server.mjs');
+  assert.equal(originAllowed(undefined, ['localhost']), true, 'no Origin (curl, monitors) is allowed');
+  assert.equal(originAllowed('http://localhost:8787', ['localhost']), true);
+  assert.equal(originAllowed('http://127.0.0.1:1', ['localhost']), true);
+  assert.equal(originAllowed('https://localhost', ['localhost']), true);
+  assert.equal(originAllowed('null', ['localhost', 'null']), true);
+  assert.equal(originAllowed('null', ['localhost']), false);
+  assert.equal(originAllowed('http://localhost.evil.example', ['localhost']), false);
+  assert.equal(originAllowed('file://', ['localhost']), false);
+  assert.equal(originAllowed('https://app.example', ['https://app.example']), true);
+  assert.equal(originAllowed('https://other.example', ['https://app.example']), false);
+  assert.equal(originAllowed('https://anything.example', []), true, 'empty list means any origin');
+});
+
 for (const s of servers) s.kill();
 upstream.close();
 
