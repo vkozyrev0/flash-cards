@@ -290,6 +290,24 @@ test('filled accent surfaces use the on-accent token that dark mode flips', () =
   }
   // button:hover would otherwise repaint the active tab a light colour under white text.
   assert.match(cssRule('.tab.active:hover'), /background: var\(--accent\)/);
+  // The light --bad-bg tint would leave --bad (#e88080) unreadable on the danger chip.
+  assert.match(html, /--bad-bg: rgba\(232, 128, 128, 0\.18\);/);
+});
+
+test('every CSS custom property a var() reads is defined', () => {
+  const styleBlock = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  const defined = new Set([...styleBlock.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+  const referenced = new Set([...styleBlock.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]));
+  // An undefined name silently falls back to a hardcoded colour, which is theme-blind:
+  // .help-mock used var(--paper-2, #f0ebde) and painted a cream panel in dark mode.
+  assert.deepEqual([...referenced].filter((name) => !defined.has(name)), []);
+});
+
+test('the help mockups paint a theme-aware surface', () => {
+  const at = html.indexOf('\n  .help-mock {');
+  assert.ok(at >= 0, '.help-mock rule');
+  const rule = html.slice(at, html.indexOf('}', at));
+  assert.match(rule, /background: var\(--(?:bg-2|card-bg|card-bg-2)\)/);
 });
 
 if (failed) {
