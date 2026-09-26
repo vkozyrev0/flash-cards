@@ -2090,19 +2090,87 @@ const HELP_HTML = {
     <h2>Швидкий старт — найчастіший сценарій</h2>
     <p class="muted">Вивчити невелику партію нових слів, які ви сьогодні зустріли.</p>
     <ol class="help-steps">
-      <li><strong>Відкрийте вкладку <em>Слова</em>.</strong></li>
-      <li><strong>Оберіть мову введення.</strong> Якщо ви вводите українські слова — залиште <em>Українська</em>. Якщо ви вводите слова англійською/російською/фінською й хочете отримати український переклад — змініть радіо-кнопку. Напрямок перекладу зміниться.</li>
-      <li><strong>Введіть слова, по одному в рядок</strong> (або вставте список через кому/слеш).</li>
-      <li><strong>Натисніть <em>Додати картки</em>.</strong> Кожен запис автоматично перекладається на інші три мови, і створюється нова колода <code>Колода &lt;дата&gt; #N</code> із цієї партії. Колода стає активною.</li>
-      <li><strong>Перейдіть на вкладку <em>Тест</em>.</strong> У шапці видно назву активної колоди та статистику (карток / на черзі / нових). Розділ <em>Вміст</em> (за замовчуванням відкритий) показує слова цієї колоди.</li>
-      <li><strong>Натисніть <em>▶ Почати сесію</em>.</strong> Виберіть <em>Варіанти</em> (мульти-вибір) або <em>Ввести</em> (вільний ввід). За потреби задайте <em>Ліміт</em> чи обмежте за <em>Категоріями</em>.</li>
-      <li><strong>Відповідайте на питання.</strong> Натисніть <kbd>1</kbd>–<kbd>6</kbd> для варіантів або введіть і натисніть <kbd>Enter</kbd>. Зверху смуга прогресу. <kbd>S</kbd> — повторити озвучку, <kbd>Esc</kbd> — скасувати.</li>
-      <li><strong>Перегляньте результати</strong> й натисніть <em>← До колод</em>. Картки, відповіді на які з першої спроби правильні, переходять далі в графіку SRS; помилки — повертаються одразу.</li>
+      <li>
+        <strong>Відкрийте вкладку <em>Слова</em>.</strong>
+        <div class="help-mock" aria-hidden="true">
+          <div class="hm-tabs"><span class="hm-tab hm-active">Слова</span><span class="hm-tab">Тест</span><span class="hm-tab">Колоди</span><span class="hm-tab">Налаштування</span><span class="hm-tab">Допомога</span></div>
+        </div>
+      </li>
+      <li>
+        <strong>Оберіть мову введення.</strong> Якщо ви вводите українські слова — залиште <em>Українська</em>. Якщо ви вводите слова англійською/російською/фінською й хочете отримати український переклад — змініть радіо-кнопку. Напрямок перекладу зміниться.
+        <div class="help-mock" aria-hidden="true">
+          <div class="hm-row"><span class="hm-label">Мова введення:</span>
+            <span class="hm-pill hm-active">Українська</span><span class="hm-pill">Російська</span><span class="hm-pill">Англійська</span><span class="hm-pill">Фінська</span>
+          </div>
+        </div>
+      </li>
+      <li>
+        <strong>Введіть слова, по одному в рядок</strong> (або вставте список через кому/слеш).
+        <div class="help-mock help-mock-ta" aria-hidden="true">привіт<br>дякую<br>книга</div>
+      </li>
+      <li>
+        <strong>Натисніть <em>Додати картки</em>.</strong> Кожен запис автоматично перекладається на інші три мови, і створюється нова колода <code>Deck &lt;дата&gt; #N</code> із цієї партії. Колода стає активною.
+        <div class="help-mock" aria-hidden="true">
+          <span class="hm-btn hm-primary">Додати картки</span>
+          <span class="hm-btn">Перекласти відсутні</span>
+          <span class="hm-muted">added 3 cards to "Deck 2026-05-12 #1".</span>
+        </div>
+      </li>
+      <li>
+        <strong>Перейдіть на вкладку <em>Тест</em>.</strong> У шапці видно назву активної колоди та статистику (карток / на черзі / нових). Розділ <em>Вміст</em> (за замовчуванням відкритий) показує слова цієї колоди.
+        <div class="help-mock help-mock-page" aria-hidden="true">
+          <div class="hm-picker">▾ <b>Deck 2026-05-12 #1</b></div>
+          <div class="hm-title">Deck 2026-05-12 #1</div>
+          <div class="hm-stats"><b>3</b> карток · <b>0</b> на черзі · <b>3</b> нових</div>
+          <div class="hm-card hm-session">
+            <div class="hm-row"><span class="hm-btn hm-primary">▶ Почати сесію</span><span class="hm-pill hm-active">Варіанти</span><span class="hm-pill">Ввести</span><span class="hm-pill">Лише на черзі (0)</span></div>
+          </div>
+          <div class="hm-collapse hm-open">▾ Вміст (3)</div>
+          <div class="hm-collapse">▸ Додати картки з пулу</div>
+        </div>
+      </li>
+      <li>
+        <strong>Натисніть <em>▶ Почати сесію</em>.</strong> Виберіть <em>Варіанти</em> (мульти-вибір) або <em>Ввести</em> (вільний ввід). За потреби задайте <em>Ліміт</em> чи обмежте за <em>Категоріями</em>.
+      </li>
+      <li>
+        <strong>Відповідайте на питання.</strong> Натисніть <kbd>1</kbd>–<kbd>6</kbd> для варіантів або введіть і натисніть <kbd>Enter</kbd>. Зверху смуга прогресу. <kbd>S</kbd> — повторити озвучку, <kbd>Esc</kbd> — скасувати.
+        <div class="help-mock help-mock-quiz" aria-hidden="true">
+          <div class="hm-pbar"><div class="hm-pfill" style="width: 40%;"></div></div>
+          <div class="hm-prompt">привіт</div>
+          <div class="hm-choices">
+            <span class="hm-choice"><b>1.</b> hello</span>
+            <span class="hm-choice"><b>2.</b> goodbye</span>
+            <span class="hm-choice"><b>3.</b> thanks</span>
+            <span class="hm-choice"><b>4.</b> please</span>
+          </div>
+        </div>
+      </li>
+      <li>
+        <strong>Перегляньте результати</strong> й натисніть <em>← До колод</em>. Картки, відповіді на які з першої спроби правильні, переходять далі в графіку SRS; помилки — повертаються одразу.
+      </li>
     </ol>
   </section>
   <section>
     <h2>Керування колодами</h2>
     <p class="muted">Усе на вкладці <em>Колоди</em>.</p>
+    <div class="help-mock help-mock-page" aria-hidden="true">
+      <div class="hm-title">Керування колодами <span class="hm-muted">(65)</span></div>
+      <div class="hm-row hm-search"><span class="hm-input" style="flex:1;">🔍 Пошук колод…</span></div>
+      <div class="hm-row">
+        <span class="hm-btn hm-danger">Видалити вибрані</span>
+        <span class="hm-btn">Об’єднати в нову колоду</span>
+        <span class="hm-input">▾ …або об’єднати в існуючу</span>
+      </div>
+      <div class="hm-row hm-mini">
+        <span class="hm-btn-sm">Вибрати авто-колоди</span>
+        <span class="hm-btn-sm">Вибрати все</span>
+        <span class="hm-btn-sm">Зняти вибір</span>
+        <span class="hm-muted" style="margin-left: auto;">вибрано: 2</span>
+      </div>
+      <div class="hm-deckrow"><input type="checkbox" disabled> <span class="hm-muted">default · default (pool)</span> <span class="hm-muted" style="margin-left:auto;">3251</span></div>
+      <div class="hm-deckrow hm-selected"><input type="checkbox" checked> <span>Deck 2026-05-12 #1</span> <span class="hm-muted" style="margin-left:auto;">3</span> <span class="hm-iconbtn">✎</span><span class="hm-iconbtn">⎘</span><span class="hm-iconbtn">🗑</span></div>
+      <div class="hm-deckrow"><input type="checkbox"> <span class="hm-muted">їжа · category</span> <span class="hm-muted" style="margin-left:auto;">142</span></div>
+    </div>
     <ul class="help-tips" style="margin-top: 8px;">
       <li><strong>Дії на рядку</strong> (✎ Перейменувати, ⎘ Дублювати, 🗑 Видалити) — тільки для користувацьких колод; <em>default</em> та категорійні — лише для читання.</li>
       <li><strong>Клік на назві колоди</strong> у рядку — перейменувати на місці. Enter зберігає, Esc скасовує.</li>
@@ -2177,19 +2245,87 @@ const HELP_HTML = {
     <h2>Быстрый старт — самый частый сценарий</h2>
     <p class="muted">Выучить небольшую партию новых слов, которые встретились сегодня.</p>
     <ol class="help-steps">
-      <li><strong>Откройте вкладку <em>Слова</em>.</strong></li>
-      <li><strong>Выберите язык ввода.</strong> Если вы вводите украинские слова — оставьте <em>Украинский</em>. Если вы пишете на английском/русском/финском и хотите получить украинский перевод — переключите радио-кнопку. Направление перевода изменится.</li>
-      <li><strong>Введите слова, по одному в строке</strong> (или вставьте список через запятую/слэш).</li>
-      <li><strong>Нажмите <em>Добавить карточки</em>.</strong> Каждая запись авто-переводится на остальные три языка, и создаётся новая колода <code>Колода &lt;дата&gt; #N</code> из этой партии. Колода становится активной.</li>
-      <li><strong>Перейдите на вкладку <em>Тест</em>.</strong> В заголовке видно имя активной колоды и статистику (карточек / к повторению / новых). Раздел <em>Содержимое</em> (по умолчанию открыт) показывает слова этой колоды.</li>
-      <li><strong>Нажмите <em>▶ Начать сессию</em>.</strong> Выберите <em>Варианты</em> (мульти-выбор) или <em>Ввод</em> (свободный ввод). При необходимости задайте <em>Лимит</em> или ограничьте по <em>Категориям</em>.</li>
-      <li><strong>Отвечайте на вопросы.</strong> Нажимайте <kbd>1</kbd>–<kbd>6</kbd> для вариантов или введите и нажмите <kbd>Enter</kbd>. Сверху полоса прогресса. <kbd>S</kbd> — повторить озвучку, <kbd>Esc</kbd> — прервать.</li>
-      <li><strong>Посмотрите результаты</strong> и нажмите <em>← К колодам</em>. Карточки, отвеченные верно с первой попытки, продвигаются дальше в графике SRS; ошибочные возвращаются сразу.</li>
+      <li>
+        <strong>Откройте вкладку <em>Слова</em>.</strong>
+        <div class="help-mock" aria-hidden="true">
+          <div class="hm-tabs"><span class="hm-tab hm-active">Слова</span><span class="hm-tab">Тест</span><span class="hm-tab">Колоды</span><span class="hm-tab">Настройки</span><span class="hm-tab">Справка</span></div>
+        </div>
+      </li>
+      <li>
+        <strong>Выберите язык ввода.</strong> Если вы вводите украинские слова — оставьте <em>Украинский</em>. Если вы пишете на английском/русском/финском и хотите получить украинский перевод — переключите радио-кнопку. Направление перевода изменится.
+        <div class="help-mock" aria-hidden="true">
+          <div class="hm-row"><span class="hm-label">Язык ввода:</span>
+            <span class="hm-pill hm-active">Украинский</span><span class="hm-pill">Русский</span><span class="hm-pill">Английский</span><span class="hm-pill">Финский</span>
+          </div>
+        </div>
+      </li>
+      <li>
+        <strong>Введите слова, по одному в строке</strong> (или вставьте список через запятую/слэш).
+        <div class="help-mock help-mock-ta" aria-hidden="true">привіт<br>дякую<br>книга</div>
+      </li>
+      <li>
+        <strong>Нажмите <em>Добавить карточки</em>.</strong> Каждая запись авто-переводится на остальные три языка, и создаётся новая колода <code>Deck &lt;дата&gt; #N</code> из этой партии. Колода становится активной.
+        <div class="help-mock" aria-hidden="true">
+          <span class="hm-btn hm-primary">Добавить карточки</span>
+          <span class="hm-btn">Перевести недостающее</span>
+          <span class="hm-muted">added 3 cards to "Deck 2026-05-12 #1".</span>
+        </div>
+      </li>
+      <li>
+        <strong>Перейдите на вкладку <em>Тест</em>.</strong> В заголовке видно имя активной колоды и статистику (карточек / к повторению / новых). Раздел <em>Содержимое</em> (по умолчанию открыт) показывает слова этой колоды.
+        <div class="help-mock help-mock-page" aria-hidden="true">
+          <div class="hm-picker">▾ <b>Deck 2026-05-12 #1</b></div>
+          <div class="hm-title">Deck 2026-05-12 #1</div>
+          <div class="hm-stats"><b>3</b> карточек · <b>0</b> к повторению · <b>3</b> новых</div>
+          <div class="hm-card hm-session">
+            <div class="hm-row"><span class="hm-btn hm-primary">▶ Начать сессию</span><span class="hm-pill hm-active">Варианты</span><span class="hm-pill">Ввод</span><span class="hm-pill">Только к повторению (0)</span></div>
+          </div>
+          <div class="hm-collapse hm-open">▾ Содержимое (3)</div>
+          <div class="hm-collapse">▸ Добавить карточки из пула</div>
+        </div>
+      </li>
+      <li>
+        <strong>Нажмите <em>▶ Начать сессию</em>.</strong> Выберите <em>Варианты</em> (мульти-выбор) или <em>Ввод</em> (свободный ввод). При необходимости задайте <em>Лимит</em> или ограничьте по <em>Категориям</em>.
+      </li>
+      <li>
+        <strong>Отвечайте на вопросы.</strong> Нажимайте <kbd>1</kbd>–<kbd>6</kbd> для вариантов или введите и нажмите <kbd>Enter</kbd>. Сверху полоса прогресса. <kbd>S</kbd> — повторить озвучку, <kbd>Esc</kbd> — прервать.
+        <div class="help-mock help-mock-quiz" aria-hidden="true">
+          <div class="hm-pbar"><div class="hm-pfill" style="width: 40%;"></div></div>
+          <div class="hm-prompt">привіт</div>
+          <div class="hm-choices">
+            <span class="hm-choice"><b>1.</b> hello</span>
+            <span class="hm-choice"><b>2.</b> goodbye</span>
+            <span class="hm-choice"><b>3.</b> thanks</span>
+            <span class="hm-choice"><b>4.</b> please</span>
+          </div>
+        </div>
+      </li>
+      <li>
+        <strong>Посмотрите результаты</strong> и нажмите <em>← К колодам</em>. Карточки, отвеченные верно с первой попытки, продвигаются дальше в графике SRS; ошибочные возвращаются сразу.
+      </li>
     </ol>
   </section>
   <section>
     <h2>Управление колодами</h2>
     <p class="muted">Всё на вкладке <em>Колоды</em>.</p>
+    <div class="help-mock help-mock-page" aria-hidden="true">
+      <div class="hm-title">Управление колодами <span class="hm-muted">(65)</span></div>
+      <div class="hm-row hm-search"><span class="hm-input" style="flex:1;">🔍 Поиск колод…</span></div>
+      <div class="hm-row">
+        <span class="hm-btn hm-danger">Удалить выбранные</span>
+        <span class="hm-btn">Объединить в новую колоду</span>
+        <span class="hm-input">▾ …или объединить в существующую</span>
+      </div>
+      <div class="hm-row hm-mini">
+        <span class="hm-btn-sm">Выбрать авто-колоды</span>
+        <span class="hm-btn-sm">Выбрать все</span>
+        <span class="hm-btn-sm">Снять выбор</span>
+        <span class="hm-muted" style="margin-left: auto;">выбрано: 2</span>
+      </div>
+      <div class="hm-deckrow"><input type="checkbox" disabled> <span class="hm-muted">default · default (pool)</span> <span class="hm-muted" style="margin-left:auto;">3251</span></div>
+      <div class="hm-deckrow hm-selected"><input type="checkbox" checked> <span>Deck 2026-05-12 #1</span> <span class="hm-muted" style="margin-left:auto;">3</span> <span class="hm-iconbtn">✎</span><span class="hm-iconbtn">⎘</span><span class="hm-iconbtn">🗑</span></div>
+      <div class="hm-deckrow"><input type="checkbox"> <span class="hm-muted">еда · category</span> <span class="hm-muted" style="margin-left:auto;">142</span></div>
+    </div>
     <ul class="help-tips" style="margin-top: 8px;">
       <li><strong>Действия на строке</strong> (✎ Переименовать, ⎘ Дублировать, 🗑 Удалить) — только для пользовательских колод; <em>default</em> и категорийные — только для чтения.</li>
       <li><strong>Клик на имени колоды</strong> в строке — переименовать на месте. Enter сохраняет, Esc отменяет.</li>
