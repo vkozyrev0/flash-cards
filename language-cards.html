@@ -20,14 +20,19 @@
     --bg-grad-2: #e9e2cf;
     --fg: #14110e;
     --fg-soft: #2a2520;
-    --muted: #837a6d;
+    /* Dark enough for 4.5:1 (WCAG AA) on every light surface this sits on, including
+       the bottom of the page gradient (#e9e2cf), where 13px hints live. */
+    --muted: #6b6355;
     --line: #e0d9c8;
     --line-strong: #c8c0ae;
     --line-soft: #efeadd;
     --accent: #1c2e5b;
     --accent-2: #2e4d8f;
     --accent-3: #3f70c4;
-    --gold: #c89b3c;
+    /* Text colour for filled accent surfaces (primary buttons, active tab, checked pills).
+       Overridden in dark mode, where the accent is a light blue. */
+    --on-accent: #ffffff;
+    --on-accent-soft: rgba(255, 255, 255, 0.8);
     --good: #2d7d32;
     --good-bg: #e6f3e7;
     --bad: #c62828;
@@ -154,7 +159,7 @@
   }
   button.primary {
     background: linear-gradient(180deg, var(--accent-2) 0%, var(--accent) 100%);
-    color: #fff; border-color: var(--accent);
+    color: var(--on-accent); border-color: var(--accent);
     box-shadow:
       0 1px 0 rgba(255,255,255,.18) inset,
       0 0 0 1px rgba(28, 46, 91, 0.4),
@@ -200,7 +205,7 @@
   .pill input { position: absolute; opacity: 0; pointer-events: none; }
   .pill:hover { background: #f7f1e0; color: var(--fg); border-color: var(--line-strong); }
   .pill:has(input:checked) {
-    background: var(--accent); color: #fff; border-color: var(--accent);
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
     box-shadow:
       0 1px 0 rgba(255,255,255,.15) inset,
       0 2px 8px -2px rgba(28, 46, 91, 0.35);
@@ -335,11 +340,14 @@
   }
   .today-badge.zero { background: var(--bg-2); color: var(--muted); border-color: var(--line-soft); }
   .tab.active {
-    color: #fff; background: var(--accent);
+    color: var(--on-accent); background: var(--accent);
     box-shadow:
       0 1px 0 rgba(255,255,255,.2) inset,
       0 2px 6px -1px rgba(28, 46, 91, 0.35);
   }
+  /* The generic button hover (background only, higher specificity than .tab.active)
+     would leave the active label on a light surface — keep it on the accent. */
+  .tab.active:hover { background: var(--accent); border-color: var(--accent); }
   .tab-content { display: none; }
   .tab-content.active { display: block; animation: tabFade 180ms ease-out; }
   @keyframes tabFade {
@@ -443,10 +451,6 @@
     max-height: 40vh; overflow: auto; margin: 6px 0;
     padding: 4px; background: var(--card-bg-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
   }
-  .deck-pick-list.manage-list { max-height: 55vh; }
-  @media (max-width: 600px) {
-    .deck-pick-list.manage-list { max-height: 65vh; }
-  }
   .deck-pick-row {
     display: flex; align-items: center; gap: 8px; padding: 8px 10px;
     border-radius: 6px; cursor: pointer; background: transparent; color: var(--fg);
@@ -463,7 +467,7 @@
   }
   .deck-pick-search:focus { outline: none; border-color: var(--accent-2); }
   .deck-picker-stats { font-size: 11px; color: var(--muted); margin-left: 4px; }
-  .deck-picker-item.active .deck-picker-stats { color: rgba(255,255,255,0.75); }
+  .deck-picker-item.active .deck-picker-stats { color: var(--on-accent-soft); }
   .deck-name-editable { cursor: text; padding: 1px 4px; border-radius: 4px; }
   .deck-name-editable:hover { background: var(--bg-2); }
   /* ----- Decks tab redesign ----- */
@@ -602,13 +606,13 @@
   .help-mock-ta { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.6; min-height: 60px; }
   .hm-tabs { display: flex; gap: 4px; }
   .hm-tab { padding: 4px 10px; border-radius: 6px; background: rgba(0,0,0,0.05); }
-  .hm-tab.hm-active { background: var(--accent, #1c2e5b); color: #fff; }
+  .hm-tab.hm-active { background: var(--accent, #1c2e5b); color: var(--on-accent); }
   .hm-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .hm-label { color: var(--muted, #888); }
   .hm-pill { padding: 3px 9px; border-radius: 999px; background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.08); }
-  .hm-pill.hm-active { background: var(--accent, #1c2e5b); color: #fff; border-color: transparent; }
+  .hm-pill.hm-active { background: var(--accent, #1c2e5b); color: var(--on-accent); border-color: transparent; }
   .hm-btn { padding: 4px 10px; border-radius: 6px; background: rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.1); }
-  .hm-btn.hm-primary { background: var(--accent, #1c2e5b); color: #fff; border-color: transparent; }
+  .hm-btn.hm-primary { background: var(--accent, #1c2e5b); color: var(--on-accent); border-color: transparent; }
   .hm-muted { color: var(--muted, #888); font-style: italic; }
   .hm-input { display: inline-block; padding: 1px 6px; background: var(--card-bg); border: 1px solid rgba(0,0,0,0.15); border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   /* Page-mockup variants */
@@ -693,11 +697,6 @@
     box-shadow: 0 0 0 3px rgba(46, 95, 165, 0.15); }
   #typeInput.right { border-color: var(--good); background: #e8f5e9; }
   #typeInput.wrong { border-color: var(--bad); background: #fde9e9; }
-  .due-badge {
-    display: inline-block; padding: 1px 7px; margin-left: 4px;
-    background: var(--accent); color: #fff; border-radius: 999px;
-    font-size: 10px; font-weight: 700; vertical-align: middle;
-  }
   /* Category chips and SRS badges on card rows */
   .cats { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
   .cat-chip {
@@ -853,8 +852,8 @@
     font-size: 14px; color: var(--fg);
   }
   .deck-picker-item:hover { background: rgba(0,0,0,0.05); }
-  .deck-picker-item.active { background: var(--accent); color: white; }
-  .deck-picker-item.active .deck-picker-count { color: rgba(255,255,255,0.8); }
+  .deck-picker-item.active { background: var(--accent); color: var(--on-accent); }
+  .deck-picker-item.active .deck-picker-count { color: var(--on-accent-soft); }
   .deck-picker-item-icon { display: inline-flex; width: 16px; height: 16px; flex-shrink: 0; }
   .deck-picker-item-icon svg { width: 100%; height: 100%; }
   .deck-picker-item-name { flex: 1; }
@@ -1063,13 +1062,16 @@
       --bg-grad-2: #14171c;
       --fg: #ecead7;
       --fg-soft: #d6d3bd;
-      --muted: #8b8676;
+      --muted: #948f7d;
       --line: #2d3038;
       --line-strong: #444853;
       --line-soft: #23262d;
       --accent: #6f9cf3;
       --accent-2: #8db3f7;
       --accent-3: #a8c5fa;
+      /* The dark-mode accent is a light blue, so filled surfaces need dark ink. */
+      --on-accent: #10131a;
+      --on-accent-soft: rgba(16, 19, 26, 0.72);
       --good: #6cc26c;
       --bad: #e88080;
       --card-bg: #1c1f25;
@@ -1106,6 +1108,9 @@
     .pool-row button.add:hover { background: rgba(108, 194, 108, 0.18); border-color: var(--good); }
     .pool-row button.rem:hover { background: rgba(232, 128, 128, 0.18); border-color: var(--bad); }
     .quiz { background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg) 100%); }
+    /* --bad is a light red here, so keep the fixed dark reds that white text reads on. */
+    button.danger { background: linear-gradient(180deg, #d73a3a, #b73030); border-color: #b22020; }
+    button.danger:hover:not(:disabled) { background: linear-gradient(180deg, #e54545, #c0392b); }
     #busyOverlay { background: rgba(0,0,0,0.55); }
     #busyOverlay .busy-card { background: var(--card-bg); }
   }
@@ -1129,7 +1134,7 @@
 
 <div class="app-header">
   <h1 data-i18n="app.title">Ukrainian Flash Cards</h1>
-  <select id="uiLangSelect" class="ui-lang-select" aria-label="Interface language">
+  <select id="uiLangSelect" class="ui-lang-select" data-i18n-aria-label="settings.uiLang" aria-label="Interface language">
     <option value="en">English</option>
     <option value="uk">Українська</option>
     <option value="ru">Русский</option>
@@ -1196,7 +1201,7 @@
     <div class="filter-bar">
       <div class="search-wrap">
         <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="poolSearch" data-i18n-placeholder="words.searchPh" placeholder="Search any language…" autocomplete="off" />
+        <input type="search" id="poolSearch" data-i18n-placeholder="words.searchPh" data-i18n-aria-label="common.search" placeholder="Search any language…" autocomplete="off" />
       </div>
       <select id="poolCategory" title="Category"><option value="__all" data-i18n="words.cat.all">All categories</option></select>
       <select id="poolStatus" title="Status">
@@ -1223,9 +1228,9 @@
 
 <!-- Hidden legacy buttons (replaced by inline actions in the Manage section). Kept so existing event listeners don't blow up. -->
 <div style="display: none;">
-  <button id="newDeckBtn">New</button>
-  <button id="renameDeckBtn">Rename</button>
-  <button id="deleteDeckBtn">Delete</button>
+  <button id="newDeckBtn" data-i18n="common.new">New</button>
+  <button id="renameDeckBtn" data-i18n="common.rename">Rename</button>
+  <button id="deleteDeckBtn" data-i18n="common.delete">Delete</button>
 </div>
 
 <div id="quizTab" class="tab-content">
@@ -1237,7 +1242,7 @@
         <span class="deck-picker-caret">▾</span>
       </button>
       <div id="deckPickerMenu" class="deck-picker-menu" role="listbox" hidden>
-        <input type="text" id="deckPickerSearch" class="deck-pick-search" data-i18n-placeholder="decks.searchPh" placeholder="Search decks…" autocomplete="off" />
+        <input type="text" id="deckPickerSearch" class="deck-pick-search" data-i18n-placeholder="decks.searchPh" data-i18n-aria-label="common.search" placeholder="Search decks…" autocomplete="off" />
         <div id="deckPickerItems"></div>
       </div>
     </div>
@@ -1310,7 +1315,7 @@
       <h2 style="margin: 4px 0 8px;"><span data-i18n="decks.manageHeading">Manage decks</span>
         <span class="muted" id="manageDecksTotal" style="font-weight: 500;"></span>
       </h2>
-      <input type="text" id="manageDecksSearch" class="deck-pick-search" data-i18n-placeholder="decks.searchPh" placeholder="Search decks…" autocomplete="off" />
+      <input type="text" id="manageDecksSearch" class="deck-pick-search" data-i18n-placeholder="decks.searchPh" data-i18n-aria-label="common.search" placeholder="Search decks…" autocomplete="off" />
       <div class="row manage-actions" style="gap: 6px; margin: 8px 0 0; flex-wrap: wrap;">
         <button id="manageBulkDelete" class="danger" data-i18n="decks.deleteSelected">Delete selected</button>
         <button id="manageBulkMergeNew" disabled title="Select 2 or more decks to merge" data-i18n="decks.mergeNew">Merge into new deck</button>
@@ -1358,31 +1363,31 @@
       </div>
     </div>
     <div class="setting">
-      <label class="setting-label">Choices per question
-        <span class="muted">3–6 buttons in multiple-choice mode</span>
+      <label class="setting-label"><span data-i18n="settings.numChoices">Choices per question</span>
+        <span class="muted" data-i18n="settings.numChoicesHint">2–6 buttons in multiple-choice mode</span>
       </label>
       <input type="number" id="setNumChoices" min="2" max="6" step="1" />
     </div>
     <div class="setting">
-      <label class="setting-label">Speech
-        <span class="muted">Read prompts and answers aloud using browser TTS</span>
+      <label class="setting-label"><span data-i18n="settings.audio">Speech</span>
+        <span class="muted" data-i18n="settings.audioHint">Read prompts and answers aloud using browser TTS</span>
       </label>
-      <label class="pill"><input type="checkbox" id="setAudioEnabled"> Audio on</label>
+      <label class="pill"><input type="checkbox" id="setAudioEnabled"> <span data-i18n="settings.audioEnable">Audio on</span></label>
     </div>
     <div class="setting">
-      <label class="setting-label">Speech rate
+      <label class="setting-label"><span data-i18n="settings.audioRate">Speech rate</span>
         <span class="muted" id="setAudioRateLabel">1.00×</span>
       </label>
       <input type="range" id="setAudioRate" min="0.5" max="1.5" step="0.05" />
-      <button id="testAudioBtn">Test</button>
+      <button id="testAudioBtn" data-i18n="settings.testAudio">Test</button>
     </div>
   </section>
 
   <section>
-    <h2>Translation</h2>
+    <h2 data-i18n="settings.translation">Translation</h2>
     <div class="setting">
-      <label class="setting-label">Default provider
-        <span class="muted">Built-in dictionary first, then this provider, then the other if the result looks empty, identical, or the wrong script</span>
+      <label class="setting-label"><span data-i18n="settings.provider">Default provider</span>
+        <span class="muted" data-i18n="settings.providerHint">Built-in dictionary first, then this provider, then the other if the result looks empty, identical, or the wrong script</span>
       </label>
       <select id="setProvider">
         <option value="google">Google</option>
@@ -1390,23 +1395,22 @@
       </select>
     </div>
     <div class="setting">
-      <label class="setting-label">Translate new words to
-        <span class="muted">Disabling a language skips it when adding new cards (existing cards untouched)</span>
+      <label class="setting-label"><span data-i18n="settings.targetLangs">Translate new words to</span>
+        <span class="muted" data-i18n="settings.targetLangsHint">Disabling a language skips it when adding new cards (existing cards untouched)</span>
       </label>
-      <label class="pill"><input type="checkbox" id="setLangRu"> Russian</label>
-      <label class="pill"><input type="checkbox" id="setLangEn"> English</label>
-      <label class="pill"><input type="checkbox" id="setLangFi"> Finnish</label>
+      <label class="pill"><input type="checkbox" id="setLangRu"> <span data-i18n="lang.ru">Russian</span></label>
+      <label class="pill"><input type="checkbox" id="setLangEn"> <span data-i18n="lang.en">English</span></label>
+      <label class="pill"><input type="checkbox" id="setLangFi"> <span data-i18n="lang.fi">Finnish</span></label>
     </div>
   </section>
 
   <section>
-    <h2>Spaced repetition</h2>
-    <p class="muted" style="margin: 0 0 12px;">After a correct first-attempt answer, the card's next review is pushed by:
-      <strong>10 min → 1 day → 3 days → 7 days → 14 days → 30 days</strong>.
-      A wrong answer resets the streak to 0 (due immediately).
+    <h2 data-i18n="settings.srs">Spaced repetition</h2>
+    <p class="muted" style="margin: 0 0 12px;"><span data-i18n="settings.srsBodyBefore">After a correct first-attempt answer, the card's next review is pushed by:</span>
+      <strong data-i18n="settings.srsIntervals">10 min → 1 day → 3 days → 7 days → 14 days → 30 days</strong><span data-i18n="settings.srsBodyAfter">. A wrong answer resets the streak to 0 (due immediately).</span>
     </p>
-    <button id="resetSrsBtn" class="danger">Reset learning stats</button>
-    <span class="muted" style="margin-left: 8px;">Clears streak, due-time, ✓/✗ counts on every card. Words and decks stay.</span>
+    <button id="resetSrsBtn" class="danger" data-i18n="settings.resetSrs">Reset learning stats</button>
+    <span class="muted" style="margin-left: 8px;" data-i18n="settings.resetSrsHint">Clears streak, due-time, ✓/✗ counts on every card. Words and decks stay.</span>
   </section>
 
   <section>
@@ -1417,26 +1421,24 @@
       <button id="setSyncBtn" data-i18n="settings.syncBundle">Sync with bundle</button>
       <button id="setResetBtn" class="danger" data-i18n="settings.reset">Reset everything</button>
     </div>
-    <p class="muted" style="margin: 8px 0 0;">Sync pulls new cards from the bundled JSON without touching learning history or cards you deleted. Reset wipes all local storage. No undo.</p>
+    <p class="muted" style="margin: 8px 0 0;" data-i18n="settings.dataHint">Sync pulls new cards from the bundled JSON without touching learning history or cards you deleted. Reset wipes all local storage. No undo.</p>
     <p class="muted" id="syncStatus" style="margin: 4px 0 0; min-height: 1em;"></p>
   </section>
 
   <section>
-    <h2>Keyboard shortcuts</h2>
+    <h2 data-i18n="settings.shortcuts">Keyboard shortcuts</h2>
     <table class="shortcut-table">
-      <tr><td><kbd>1</kbd> – <kbd>4</kbd></td><td>Pick a multiple-choice answer</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>Submit typed answer</td></tr>
-      <tr><td><kbd>Space</kbd> or <kbd>Enter</kbd></td><td>Continue after answer feedback</td></tr>
-      <tr><td><kbd>S</kbd></td><td>Replay prompt audio</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>Cancel session</td></tr>
+      <tr><td><kbd>1</kbd> – <kbd>6</kbd></td><td data-i18n="sc.row.choice">Pick a multiple-choice answer</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td data-i18n="sc.row.submit">Submit typed answer</td></tr>
+      <tr><td><kbd>Space</kbd> or <kbd>Enter</kbd></td><td data-i18n="sc.row.continue">Continue after answer feedback</td></tr>
+      <tr><td><kbd>S</kbd></td><td data-i18n="sc.row.speak">Replay prompt audio</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td data-i18n="sc.row.cancel">Cancel session</td></tr>
     </table>
   </section>
 
   <section>
-    <h2>About</h2>
-    <p class="muted" style="margin: 0;">Single-page flashcard app. Storage: browser localStorage under <code>ukr-cards-v3</code>.
-      Translation: built-in dictionary, then the preferred provider, then the other if the result looks wrong. Click any translation to edit; ↻ re-translates that cell.
-      No accounts, no telemetry.</p>
+    <h2 data-i18n="settings.about">About</h2>
+    <p class="muted" style="margin: 0;"><span data-i18n="settings.aboutBodyBefore">Single-page flashcard app. Storage: browser localStorage under</span> <code>ukr-cards-v3</code><span data-i18n="settings.aboutBodyAfter">. Translation: built-in dictionary, then the preferred provider, then the other if the result looks wrong. Click any translation to edit; ↻ re-translates that cell. No accounts, no telemetry.</span></p>
   </section>
 </div>
 
@@ -1514,7 +1516,7 @@
         <strong>Click <em>▶ Start session</em>.</strong> Choose <em>Choices</em> (multiple-choice) or <em>Type</em> (free recall). Optional: set a <em>Limit</em> or restrict by <em>Categories</em>.
       </li>
       <li>
-        <strong>Answer each prompt.</strong> Press <kbd>1</kbd>–<kbd>4</kbd> for choices, or type the answer and press <kbd>Enter</kbd>. A progress bar across the top shows how far you've come. <kbd>S</kbd> replays the audio, <kbd>Esc</kbd> cancels.
+        <strong>Answer each prompt.</strong> Press <kbd>1</kbd>–<kbd>6</kbd> for choices, or type the answer and press <kbd>Enter</kbd>. A progress bar across the top shows how far you've come. <kbd>S</kbd> replays the audio, <kbd>Esc</kbd> cancels.
         <div class="help-mock help-mock-quiz" aria-hidden="true">
           <div class="hm-pbar"><div class="hm-pfill" style="width: 40%;"></div></div>
           <div class="hm-prompt">привіт</div>
@@ -1618,7 +1620,7 @@
 </div>
 
 <section id="quizSection" class="hidden">
-  <h2>Session</h2>
+  <h2 data-i18n="session.heading">Session</h2>
   <div class="quiz">
     <div class="row" style="justify-content: space-between; margin-bottom: 8px; align-items: center;">
       <div class="progress" id="progress"></div>
@@ -1672,7 +1674,7 @@
   <h3 data-i18n="sc.heading">Keyboard shortcuts</h3>
   <table class="shortcut-table" style="width: 100%;">
     <tr><td><kbd>?</kbd></td><td data-i18n="sc.row.help">Show this list</td></tr>
-    <tr><td><kbd>1</kbd> – <kbd>4</kbd></td><td data-i18n="sc.row.choice">Pick a multiple-choice answer</td></tr>
+    <tr><td><kbd>1</kbd> – <kbd>6</kbd></td><td data-i18n="sc.row.choice">Pick a multiple-choice answer</td></tr>
     <tr><td><kbd>Enter</kbd></td><td data-i18n="sc.row.submit">Submit typed answer</td></tr>
     <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td data-i18n="sc.row.continue">Continue after feedback</td></tr>
     <tr><td><kbd>S</kbd></td><td data-i18n="sc.row.speak">Replay prompt audio</td></tr>
@@ -1736,7 +1738,7 @@ const STRINGS = {
     'lang.uk': 'Ukrainian', 'lang.ru': 'Russian', 'lang.en': 'English', 'lang.fi': 'Finnish',
     'common.ok': 'OK', 'common.cancel': 'Cancel', 'common.close': 'Close', 'common.delete': 'Delete',
     'common.rename': 'Rename', 'common.duplicate': 'Duplicate', 'common.new': 'New',
-    'common.search': 'Search', 'common.add': 'Add', 'common.import': 'Import', 'common.export': 'Export',
+    'common.search': 'Search', 'common.import': 'Import', 'common.export': 'Export',
     // Words tab
     'words.addHeading': 'Add words',
     'words.addIntro': 'One word or phrase per line. Common words use a built-in dictionary; others are machine-translated. Each batch goes into its own deck — review translations there (click to edit, ↻ to re-translate).',
@@ -1765,11 +1767,14 @@ const STRINGS = {
     'quiz.bulk.copyTo': 'Copy to…', 'quiz.bulk.addToActive': 'Add to active deck', 'quiz.bulk.selected': '{n} selected',
     'quiz.clickToRename': 'Click to rename',
     // Manage / decks
-    'decks.manageHeading': 'Manage decks', 'decks.manageIntro': 'Rename, duplicate, delete, or merge any of your decks. Read-only category decks can be duplicated into editable user decks.',
+    'decks.manageHeading': 'Manage decks',
     'decks.searchPh': 'Search decks…', 'decks.selectAuto': 'Select auto-decks', 'decks.selectAll': 'Select all', 'decks.selectNone': 'Select none',
     'decks.deleteSelected': 'Delete selected', 'decks.mergeNew': 'Merge into new deck', 'decks.mergeExisting': '…or merge into existing',
+    'decks.selected': '{n} selected', 'decks.mergeHint': 'Select 2 or more decks to merge',
+    'decks.reservedName': '"default" is reserved.', 'decks.duplicateName': 'Deck "{name}" already exists.',
+    'decks.pickSource': 'Pick at least one source deck first.',
     // Session / results
-    'session.cancel': 'Cancel', 'session.continue': 'Continue (Space)',
+    'session.heading': 'Session', 'session.cancel': 'Cancel', 'session.continue': 'Continue (Space)',
     'session.typePh': 'Type the answer and press Enter',
     'results.heading': 'Results', 'results.back': '← Back to decks', 'results.copyCsv': 'Copy as CSV',
     'results.col.prompt': 'Prompt', 'results.col.asked': 'Asked', 'results.col.yourAnswer': 'Your answer',
@@ -1778,14 +1783,27 @@ const STRINGS = {
     'settings.overview': 'Overview', 'settings.quizPrefs': 'Quiz preferences',
     'settings.promptLang': 'Prompt language', 'settings.promptLangHint': "Words you'll be shown when a session starts",
     'settings.answerLang': 'Answer language', 'settings.answerLangHint': "What you'll be asked to produce",
-    'settings.numChoices': 'Choices per question', 'settings.audio': 'Audio',
-    'settings.audioEnable': 'Speak prompts', 'settings.audioRate': 'Audio rate',
-    'settings.quizLimit': 'Quiz length', 'settings.targetLangs': 'Target languages',
+    'settings.numChoices': 'Choices per question', 'settings.audio': 'Speech',
+    'settings.audioEnable': 'Audio on', 'settings.audioRate': 'Speech rate',
+    'settings.targetLangs': 'Translate new words to',
     'settings.data': 'Data', 'settings.exportState': 'Export full state', 'settings.import': 'Import…',
     'settings.syncBundle': 'Sync with bundle', 'settings.reset': 'Reset everything',
     'settings.resetSrs': 'Reset learning stats',
     'settings.shortcuts': 'Keyboard shortcuts', 'settings.about': 'About',
-    'settings.uiLang': 'Interface language', 'settings.uiLangHint': 'Language of the app interface',
+    'settings.uiLang': 'Interface language',
+    'settings.numChoicesHint': '2–6 buttons in multiple-choice mode',
+    'settings.audioHint': 'Read prompts and answers aloud using browser TTS', 'settings.testAudio': 'Test',
+    'settings.translation': 'Translation', 'settings.provider': 'Default provider',
+    'settings.providerHint': 'Built-in dictionary first, then this provider, then the other if the result looks empty, identical, or the wrong script',
+    'settings.targetLangsHint': 'Disabling a language skips it when adding new cards (existing cards untouched)',
+    'settings.srs': 'Spaced repetition',
+    'settings.srsBodyBefore': "After a correct first-attempt answer, the card's next review is pushed by:",
+    'settings.srsIntervals': '10 min → 1 day → 3 days → 7 days → 14 days → 30 days',
+    'settings.srsBodyAfter': '. A wrong answer resets the streak to 0 (due immediately).',
+    'settings.resetSrsHint': 'Clears streak, due-time, ✓/✗ counts on every card. Words and decks stay.',
+    'settings.dataHint': 'Sync pulls new cards from the bundled JSON without touching learning history or cards you deleted. Reset wipes all local storage. No undo.',
+    'settings.aboutBodyBefore': 'Single-page flashcard app. Storage: browser localStorage under',
+    'settings.aboutBodyAfter': '. Translation: built-in dictionary, then the preferred provider, then the other if the result looks wrong. Click any translation to edit; ↻ re-translates that cell. No accounts, no telemetry.',
     // Install banner
     'install.text': '📲 Install Ukrainian Cards as a home-screen app for one-tap access.',
     'install.notNow': 'Not now', 'install.accept': 'Install',
@@ -1810,7 +1828,7 @@ const STRINGS = {
     'lang.uk': 'Українська', 'lang.ru': 'Російська', 'lang.en': 'Англійська', 'lang.fi': 'Фінська',
     'common.ok': 'OK', 'common.cancel': 'Скасувати', 'common.close': 'Закрити', 'common.delete': 'Видалити',
     'common.rename': 'Перейменувати', 'common.duplicate': 'Дублювати', 'common.new': 'Нова',
-    'common.search': 'Пошук', 'common.add': 'Додати', 'common.import': 'Імпорт', 'common.export': 'Експорт',
+    'common.search': 'Пошук', 'common.import': 'Імпорт', 'common.export': 'Експорт',
     'words.addHeading': 'Додати слова',
     'words.addIntro': 'Одне слово або фраза на рядок. Часто вживані слова беруться з вбудованого словника, інші — з автоперекладу. Кожна партія потрапляє в окрему колоду — перевірте переклади (клік — редагувати, ↻ — перекласти знову).',
     'words.inputLang': 'Мова введення:',
@@ -1834,10 +1852,12 @@ const STRINGS = {
     'quiz.bulk.copyTo': 'Скопіювати в…', 'quiz.bulk.addToActive': 'Додати в активну колоду', 'quiz.bulk.selected': 'вибрано: {n}',
     'quiz.clickToRename': 'Клік — перейменувати',
     'decks.manageHeading': 'Керування колодами',
-    'decks.manageIntro': 'Перейменовуйте, дублюйте, видаляйте або об’єднуйте колоди. Категорійні колоди тільки для читання — їх можна дублювати в редаговані.',
     'decks.searchPh': 'Пошук колод…', 'decks.selectAuto': 'Вибрати авто-колоди', 'decks.selectAll': 'Вибрати все', 'decks.selectNone': 'Зняти вибір',
     'decks.deleteSelected': 'Видалити вибрані', 'decks.mergeNew': 'Об’єднати в нову колоду', 'decks.mergeExisting': '…або об’єднати в існуючу',
-    'session.cancel': 'Скасувати', 'session.continue': 'Далі (пробіл)',
+    'decks.selected': 'вибрано: {n}', 'decks.mergeHint': 'Виберіть 2 або більше колод для об’єднання',
+    'decks.reservedName': '«default» зарезервовано.', 'decks.duplicateName': 'Колода «{name}» вже існує.',
+    'decks.pickSource': 'Спершу виберіть хоча б одну колоду-джерело.',
+    'session.heading': 'Сесія', 'session.cancel': 'Скасувати', 'session.continue': 'Далі (пробіл)',
     'session.typePh': 'Введіть відповідь і натисніть Enter',
     'results.heading': 'Результати', 'results.back': '← До колод', 'results.copyCsv': 'Копіювати як CSV',
     'results.col.prompt': 'Запит', 'results.col.asked': 'Запитано', 'results.col.yourAnswer': 'Ваша відповідь',
@@ -1847,12 +1867,25 @@ const STRINGS = {
     'settings.answerLang': 'Мова відповіді', 'settings.answerLangHint': 'Якою мовою потрібно дати відповідь',
     'settings.numChoices': 'Варіантів на питання', 'settings.audio': 'Звук',
     'settings.audioEnable': 'Озвучувати запит', 'settings.audioRate': 'Швидкість озвучення',
-    'settings.quizLimit': 'Довжина тесту', 'settings.targetLangs': 'Мови перекладу',
+    'settings.targetLangs': 'Перекладати нові слова на',
     'settings.data': 'Дані', 'settings.exportState': 'Експорт стану', 'settings.import': 'Імпорт…',
     'settings.syncBundle': 'Синхр. з пакетом', 'settings.reset': 'Скинути все',
     'settings.resetSrs': 'Скинути статистику SRS',
     'settings.shortcuts': 'Гарячі клавіші', 'settings.about': 'Про застосунок',
-    'settings.uiLang': 'Мова інтерфейсу', 'settings.uiLangHint': 'Мова інтерфейсу застосунку',
+    'settings.uiLang': 'Мова інтерфейсу',
+    'settings.numChoicesHint': '2–6 кнопок у режимі вибору',
+    'settings.audioHint': 'Читати запитання й відповіді вголос через TTS браузера', 'settings.testAudio': 'Перевірити',
+    'settings.translation': 'Переклад', 'settings.provider': 'Провайдер за замовчуванням',
+    'settings.providerHint': 'Спершу вбудований словник, далі цей провайдер, потім інший, якщо результат порожній, ідентичний або не тією абеткою',
+    'settings.targetLangsHint': 'Вимкнена мова пропускається під час додавання нових карток (наявні не змінюються)',
+    'settings.srs': 'Інтервальне повторення',
+    'settings.srsBodyBefore': 'Після правильної відповіді з першої спроби наступний показ картки відкладається на:',
+    'settings.srsIntervals': '10 хв → 1 день → 3 дні → 7 днів → 14 днів → 30 днів',
+    'settings.srsBodyAfter': '. Неправильна відповідь скидає серію до 0 (показ одразу).',
+    'settings.resetSrsHint': 'Очищає серію, час показу та лічильники ✓/✗ на кожній картці. Слова й колоди залишаються.',
+    'settings.dataHint': 'Синхронізація додає нові картки з пакета, не торкаючись історії навчання та видалених вами карток. Скидання стирає все локальне сховище. Скасувати неможливо.',
+    'settings.aboutBodyBefore': 'Односторінковий картковий застосунок. Сховище: localStorage браузера під ключем',
+    'settings.aboutBodyAfter': '. Переклад: вбудований словник, далі обраний провайдер, потім інший, якщо результат виглядає неправильно. Клік на перекладі — редагувати; ↻ перекладає цю клітинку. Без акаунтів і телеметрії.',
     'install.text': '📲 Встановіть «Ukrainian Cards» як застосунок на головному екрані для швидкого доступу.',
     'install.notNow': 'Не зараз', 'install.accept': 'Встановити',
     'sc.heading': 'Гарячі клавіші',
@@ -1874,7 +1907,7 @@ const STRINGS = {
     'lang.uk': 'Украинский', 'lang.ru': 'Русский', 'lang.en': 'Английский', 'lang.fi': 'Финский',
     'common.ok': 'OK', 'common.cancel': 'Отмена', 'common.close': 'Закрыть', 'common.delete': 'Удалить',
     'common.rename': 'Переименовать', 'common.duplicate': 'Дублировать', 'common.new': 'Новая',
-    'common.search': 'Поиск', 'common.add': 'Добавить', 'common.import': 'Импорт', 'common.export': 'Экспорт',
+    'common.search': 'Поиск', 'common.import': 'Импорт', 'common.export': 'Экспорт',
     'words.addHeading': 'Добавить слова',
     'words.addIntro': 'Одно слово или фраза в строке. Частые слова берутся из встроенного словаря, остальные — из автоперевода. Каждая партия попадает в отдельную колоду — проверьте переводы (клик — править, ↻ — перевести снова).',
     'words.inputLang': 'Язык ввода:',
@@ -1898,10 +1931,12 @@ const STRINGS = {
     'quiz.bulk.copyTo': 'Скопировать в…', 'quiz.bulk.addToActive': 'Добавить в активную колоду', 'quiz.bulk.selected': 'выбрано: {n}',
     'quiz.clickToRename': 'Клик — переименовать',
     'decks.manageHeading': 'Управление колодами',
-    'decks.manageIntro': 'Переименовывайте, дублируйте, удаляйте или объединяйте колоды. Колоды-категории только для чтения — их можно дублировать в редактируемые.',
     'decks.searchPh': 'Поиск колод…', 'decks.selectAuto': 'Выбрать авто-колоды', 'decks.selectAll': 'Выбрать все', 'decks.selectNone': 'Снять выбор',
     'decks.deleteSelected': 'Удалить выбранные', 'decks.mergeNew': 'Объединить в новую колоду', 'decks.mergeExisting': '…или объединить в существующую',
-    'session.cancel': 'Отмена', 'session.continue': 'Далее (пробел)',
+    'decks.selected': 'выбрано: {n}', 'decks.mergeHint': 'Выберите 2 или более колод для объединения',
+    'decks.reservedName': '«default» зарезервировано.', 'decks.duplicateName': 'Колода «{name}» уже существует.',
+    'decks.pickSource': 'Сначала выберите хотя бы одну колоду-источник.',
+    'session.heading': 'Сессия', 'session.cancel': 'Отмена', 'session.continue': 'Далее (пробел)',
     'session.typePh': 'Введите ответ и нажмите Enter',
     'results.heading': 'Результаты', 'results.back': '← К колодам', 'results.copyCsv': 'Копировать как CSV',
     'results.col.prompt': 'Запрос', 'results.col.asked': 'Спрошено', 'results.col.yourAnswer': 'Ваш ответ',
@@ -1911,12 +1946,25 @@ const STRINGS = {
     'settings.answerLang': 'Язык ответа', 'settings.answerLangHint': 'На каком языке нужно ответить',
     'settings.numChoices': 'Вариантов на вопрос', 'settings.audio': 'Звук',
     'settings.audioEnable': 'Озвучивать запрос', 'settings.audioRate': 'Скорость озвучки',
-    'settings.quizLimit': 'Длина теста', 'settings.targetLangs': 'Языки перевода',
+    'settings.targetLangs': 'Переводить новые слова на',
     'settings.data': 'Данные', 'settings.exportState': 'Экспорт состояния', 'settings.import': 'Импорт…',
     'settings.syncBundle': 'Синхр. с пакетом', 'settings.reset': 'Сбросить всё',
     'settings.resetSrs': 'Сбросить статистику SRS',
     'settings.shortcuts': 'Горячие клавиши', 'settings.about': 'О приложении',
-    'settings.uiLang': 'Язык интерфейса', 'settings.uiLangHint': 'Язык интерфейса приложения',
+    'settings.uiLang': 'Язык интерфейса',
+    'settings.numChoicesHint': '2–6 кнопок в режиме выбора',
+    'settings.audioHint': 'Читать вопросы и ответы вслух через TTS браузера', 'settings.testAudio': 'Проверить',
+    'settings.translation': 'Перевод', 'settings.provider': 'Провайдер по умолчанию',
+    'settings.providerHint': 'Сначала встроенный словарь, затем этот провайдер, потом другой, если результат пустой, идентичный или не тем алфавитом',
+    'settings.targetLangsHint': 'Отключённый язык пропускается при добавлении новых карточек (существующие не меняются)',
+    'settings.srs': 'Интервальные повторения',
+    'settings.srsBodyBefore': 'После верного ответа с первой попытки следующий показ карточки откладывается на:',
+    'settings.srsIntervals': '10 мин → 1 день → 3 дня → 7 дней → 14 дней → 30 дней',
+    'settings.srsBodyAfter': '. Неверный ответ сбрасывает серию до 0 (показ сразу).',
+    'settings.resetSrsHint': 'Очищает серию, время показа и счётчики ✓/✗ на каждой карточке. Слова и колоды остаются.',
+    'settings.dataHint': 'Синхронизация добавляет новые карточки из пакета, не затрагивая историю обучения и удалённые вами карточки. Сброс стирает всё локальное хранилище. Отменить нельзя.',
+    'settings.aboutBodyBefore': 'Одностраничное карточное приложение. Хранилище: localStorage браузера под ключом',
+    'settings.aboutBodyAfter': '. Перевод: встроенный словарь, затем выбранный провайдер, потом другой, если результат выглядит неверно. Клик по переводу — править; ↻ переводит эту ячейку. Без аккаунтов и телеметрии.',
     'install.text': '📲 Установите «Ukrainian Cards» как приложение на главном экране для быстрого доступа.',
     'install.notNow': 'Не сейчас', 'install.accept': 'Установить',
     'sc.heading': 'Горячие клавиши',
@@ -2046,7 +2094,7 @@ const HELP_HTML = {
       <li><strong>Натисніть <em>Додати картки</em>.</strong> Кожен запис автоматично перекладається на інші три мови, і створюється нова колода <code>Колода &lt;дата&gt; #N</code> із цієї партії. Колода стає активною.</li>
       <li><strong>Перейдіть на вкладку <em>Тест</em>.</strong> У шапці видно назву активної колоди та статистику (карток / на черзі / нових). Розділ <em>Вміст</em> (за замовчуванням відкритий) показує слова цієї колоди.</li>
       <li><strong>Натисніть <em>▶ Почати сесію</em>.</strong> Виберіть <em>Варіанти</em> (мульти-вибір) або <em>Ввести</em> (вільний ввід). За потреби задайте <em>Ліміт</em> чи обмежте за <em>Категоріями</em>.</li>
-      <li><strong>Відповідайте на питання.</strong> Натисніть <kbd>1</kbd>–<kbd>4</kbd> для варіантів або введіть і натисніть <kbd>Enter</kbd>. Зверху смуга прогресу. <kbd>S</kbd> — повторити озвучку, <kbd>Esc</kbd> — скасувати.</li>
+      <li><strong>Відповідайте на питання.</strong> Натисніть <kbd>1</kbd>–<kbd>6</kbd> для варіантів або введіть і натисніть <kbd>Enter</kbd>. Зверху смуга прогресу. <kbd>S</kbd> — повторити озвучку, <kbd>Esc</kbd> — скасувати.</li>
       <li><strong>Перегляньте результати</strong> й натисніть <em>← До колод</em>. Картки, відповіді на які з першої спроби правильні, переходять далі в графіку SRS; помилки — повертаються одразу.</li>
     </ol>
   </section>
@@ -2133,7 +2181,7 @@ const HELP_HTML = {
       <li><strong>Нажмите <em>Добавить карточки</em>.</strong> Каждая запись авто-переводится на остальные три языка, и создаётся новая колода <code>Колода &lt;дата&gt; #N</code> из этой партии. Колода становится активной.</li>
       <li><strong>Перейдите на вкладку <em>Тест</em>.</strong> В заголовке видно имя активной колоды и статистику (карточек / к повторению / новых). Раздел <em>Содержимое</em> (по умолчанию открыт) показывает слова этой колоды.</li>
       <li><strong>Нажмите <em>▶ Начать сессию</em>.</strong> Выберите <em>Варианты</em> (мульти-выбор) или <em>Ввод</em> (свободный ввод). При необходимости задайте <em>Лимит</em> или ограничьте по <em>Категориям</em>.</li>
-      <li><strong>Отвечайте на вопросы.</strong> Нажимайте <kbd>1</kbd>–<kbd>4</kbd> для вариантов или введите и нажмите <kbd>Enter</kbd>. Сверху полоса прогресса. <kbd>S</kbd> — повторить озвучку, <kbd>Esc</kbd> — прервать.</li>
+      <li><strong>Отвечайте на вопросы.</strong> Нажимайте <kbd>1</kbd>–<kbd>6</kbd> для вариантов или введите и нажмите <kbd>Enter</kbd>. Сверху полоса прогресса. <kbd>S</kbd> — повторить озвучку, <kbd>Esc</kbd> — прервать.</li>
       <li><strong>Посмотрите результаты</strong> и нажмите <em>← К колодам</em>. Карточки, отвеченные верно с первой попытки, продвигаются дальше в графике SRS; ошибочные возвращаются сразу.</li>
     </ol>
   </section>
@@ -2215,7 +2263,6 @@ let state = loadState();
 let session = null;
 
 const pool = () => Object.values(state.cards);
-const cardByUk = (uk) => Object.values(state.cards).find(c => norm(c.uk) === norm(uk));
 const CAT_DECK_PREFIX = 'cat:';
 const isCategoryDeck = (name) => typeof name === 'string' && name.startsWith(CAT_DECK_PREFIX);
 const categoryFromDeck = (name) => isCategoryDeck(name) ? name.slice(CAT_DECK_PREFIX.length) : null;
@@ -2428,7 +2475,6 @@ function saveStateSoon() {
 }
 // Flush a pending debounced save before unload.
 window.addEventListener('beforeunload', () => { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; saveState({ quiet: true }); } });
-const saveCards = saveState;
 
 // ---- App-internal notice/confirm (replaces native alert/confirm) ----
 // Returns a Promise that resolves with true (OK) or false (Cancel / Esc / backdrop).
@@ -2486,12 +2532,6 @@ function askText(message, defaultValue = '', { title = 'Enter value', okLabel = 
 const RENDER_PAGE_SIZE = 200;
 const renderCaps = { pool: RENDER_PAGE_SIZE, deck: RENDER_PAGE_SIZE, available: RENDER_PAGE_SIZE };
 function bumpCap(key) { renderCaps[key] += RENDER_PAGE_SIZE; renderAll(); }
-// Reset caps to default whenever filters change so the cap doesn't accumulate across filter changes.
-function resetRenderCaps() {
-  renderCaps.pool = RENDER_PAGE_SIZE;
-  renderCaps.deck = RENDER_PAGE_SIZE;
-  renderCaps.available = RENDER_PAGE_SIZE;
-}
 
 function switchDeck(name) {
   if (!isCategoryDeck(name) && !state.decks[name]) return;
@@ -2536,14 +2576,8 @@ function renderBulkBar(listKey, visibleCount) {
   cb.checked = count > 0 && count >= visibleCount;
   cb.indeterminate = count > 0 && count < visibleCount;
   $(listKey === 'deck' ? 'deckBulkCount' : 'availBulkCount').textContent =
-    `${count} selected`;
+    t('quiz.bulk.selected', { n: count });
 }
-
-const allCategoriesFromPool = () => {
-  const set = new Set();
-  for (const c of pool()) for (const k of (c.categories || [])) set.add(k);
-  return [...set].sort();
-};
 
 // Inline SVG icons (Lucide-style: 24×24, stroke=currentColor, fill=none).
 // Add new categories here; falls back to ICON_DEFAULT.
@@ -2646,7 +2680,6 @@ function renderDeckSelect() {
   $('renameDeckBtn').title = readonly ? 'This deck is read-only' : '';
   $('deleteDeckBtn').disabled = readonly || Object.keys(state.decks).length <= 1;
   $('deleteDeckBtn').title = readonly ? 'This deck is read-only' : '';
-  const adl = $('activeDeckLabel'); if (adl) adl.textContent = isCategoryDeck(state.active) ? `category: ${categoryFromDeck(state.active)}` : state.active;
   const adn = $('activeDeckName');
   if (adn) {
     adn.textContent = isCategoryDeck(state.active) ? `${tCat(categoryFromDeck(state.active))} (category)` : state.active;
@@ -2668,7 +2701,7 @@ function paintDeckPickerItems() {
     items.appendChild(userHeader);
     for (const name of matchUser) items.appendChild(buildDeckItem(name, name, deckOf(name).length));
   }
-  const cats = allCategoriesFromPool().filter(c => !q || c.toLowerCase().includes(q));
+  const cats = allCategories().filter(c => !q || c.toLowerCase().includes(q));
   if (cats.length) {
     const catHeader = document.createElement('div');
     catHeader.className = 'deck-picker-group-label';
@@ -3121,13 +3154,21 @@ function beginCellEdit(el, card, lang) {
 
 let poolFilters = { q: '', category: '__all', status: '__all', sort: 'recent' };
 
-function applyPoolFilters(cards) {
-  const f = poolFilters;
+// A category filter can outlive its category: the last card carrying it can be deleted,
+// retagged, or replaced by a bundle sync. Left alone, the dropdown would fall back to
+// "All categories" while the list stayed filtered, showing an empty pool for no visible reason.
+function prunePoolFilters(filters, categories) {
+  if (filters.category === '__all' || categories.includes(filters.category)) return filters;
+  return { ...filters, category: '__all' };
+}
+
+function applyPoolFilters(cards, filters) {
+  const f = filters;
   const now = Date.now();
   let out = cards.slice();
   if (f.q) {
-    const q = f.q.toLowerCase();
-    out = out.filter(c => [c.uk, c.ru, c.en, c.fi].some(v => (v || '').includes(q)));
+    // The query is lower-cased when it is typed, so the haystack has to be too.
+    out = out.filter(c => [c.uk, c.ru, c.en, c.fi].some(v => String(v || '').toLowerCase().includes(f.q)));
   }
   if (f.category !== '__all') {
     out = out.filter(c => (c.categories || []).includes(f.category));
@@ -3175,9 +3216,10 @@ function renderPoolCategoryOptions() {
 }
 
 function renderPoolList() {
+  poolFilters = prunePoolFilters(poolFilters, allCategories());
   renderPoolCategoryOptions();
   const totalAll = pool().length;
-  const filtered = applyPoolFilters(pool());
+  const filtered = applyPoolFilters(pool(), poolFilters);
   $('poolCount').textContent = filtered.length;
   $('poolFiltered').textContent = (poolFiltersActive() && filtered.length !== totalAll)
     ? ` of ${totalAll}` : '';
@@ -3309,7 +3351,7 @@ function renderDeckCards() {
 
 function renderAvailable() {
   const readonly = isReadonlyDeck(state.active);
-  const section = $('availableSection');
+  const section = $('addCardsSection');
   if (section) section.classList.toggle('hidden', readonly);
   if (readonly) {
     $('availableCount').textContent = 0;
@@ -3948,6 +3990,10 @@ function dueCardsCount() {
   return deckCards().filter(c => cardIsDue(c)).length;
 }
 
+// The Results screen replaces the session UI but keeps `session` around so the CSV
+// export can still read the answers. Keys and Cancel must ignore it from that point on.
+const sessionIsOver = () => !session || !$('resultsSection').classList.contains('hidden');
+
 function pickSessionCards(cards, limit, dueOnly) {
   if (dueOnly) return shuffle(cards.filter(c => cardIsDue(c))).slice(0, limit);
   const due = [], fresh = [], later = [];
@@ -4021,14 +4067,6 @@ document.querySelectorAll('input[name="lang"]').forEach(r => {
   });
 });
 
-// "Configure quiz" link jumps to Settings.
-document.addEventListener('click', (e) => {
-  if (e.target && e.target.id === 'goToSettingsLink') {
-    e.preventDefault();
-    showTab('settings');
-  }
-});
-
 $('startBtn').addEventListener('click', () => {
   let cards = deckCards();
   const cats = selectedCategories();
@@ -4089,12 +4127,12 @@ function exitSession() {
 }
 
 $('cancelSessionBtn').addEventListener('click', async () => {
-  if (!session) return;
+  if (sessionIsOver()) return;
   const answered = Object.keys(session.firstResults).length;
   const remaining = session.queue.length + (session.current ? 1 : 0);
   if (answered && remaining) {
     const ok = await askConfirm(`End session? ${answered} answered card(s) already saved. ${remaining} left unanswered.`);
-    if (!ok || !session) return;
+    if (!ok || sessionIsOver()) return;
   }
   exitSession();
 });
@@ -4229,7 +4267,7 @@ $('typeInput').addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (!session) return;
+  if (sessionIsOver()) return;
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   // Continue with Space/Enter when feedback is visible.
   if ($('continueRow').style.display !== 'none' && (e.key === ' ' || e.key === 'Enter')) {
@@ -4315,13 +4353,6 @@ for (const btn of document.querySelectorAll('#tabs .tab')) {
 }
 
 // ---- Bulk-action handlers ----
-function visibleDeckRowIds() {
-  return [...$('deckCardsList').querySelectorAll('.pool-row')].map(row => {
-    // Recover id via index correspondence with deckCards(); the row position == card position.
-    return null;
-  }).filter(Boolean); // unused — actual orderedIds are passed during rendering. Kept for clarity.
-}
-
 // Select-all toggles for visible rows.
 $('deckSelectAllCb').addEventListener('change', (e) => {
   const cards = deckCards();
@@ -4447,9 +4478,9 @@ function makeManageRow(name, kind /* 'default' | 'user' | 'category' */) {
     <span class="deck-pick-name"></span>
     <span class="deck-pick-tag muted"></span>
     <span class="deck-pick-count"></span>
-    <button class="act manage-rename" title="Rename" aria-label="Rename deck"${isReadonly ? ' disabled' : ''}>✎</button>
-    <button class="act manage-dup" title="Duplicate" aria-label="Duplicate deck">⎘</button>
-    <button class="act manage-del" title="Delete" aria-label="Delete deck"${isReadonly ? ' disabled' : ''}>🗑</button>`;
+    <button class="act manage-rename" title="${escapeHtml(t('common.rename'))}" aria-label="${escapeHtml(t('common.rename'))}"${isReadonly ? ' disabled' : ''}>✎</button>
+    <button class="act manage-dup" title="${escapeHtml(t('common.duplicate'))}" aria-label="${escapeHtml(t('common.duplicate'))}">⎘</button>
+    <button class="act manage-del" title="${escapeHtml(t('common.delete'))}" aria-label="${escapeHtml(t('common.delete'))}"${isReadonly ? ' disabled' : ''}>🗑</button>`;
   const nameEl = row.children[1];
   const tagEl = row.children[2];
   const countEl = row.children[3];
@@ -4488,9 +4519,9 @@ function makeManageRow(name, kind /* 'default' | 'user' | 'category' */) {
         if (v === 'default' || state.decks[v]) {
           input.replaceWith(nameEl);
           $('manageCount').textContent = v === 'default'
-            ? `"default" is reserved.`
-            : `Deck "${v}" already exists.`;
-          setTimeout(() => $('manageCount').textContent = `${manageSel.size} selected`, 2500);
+            ? t('decks.reservedName')
+            : t('decks.duplicateName', { name: v });
+          setTimeout(() => $('manageCount').textContent = selectedCountText(), 2500);
           return;
         }
         state.decks[v] = state.decks[name];
@@ -4553,7 +4584,7 @@ function refreshManageList() {
   if (matches('default', 'default')) { list.appendChild(makeManageRow('default', 'default')); shown++; }
   const userNames = Object.keys(state.decks).filter(n => n !== 'default').sort();
   for (const name of userNames) if (matches(name, name)) { list.appendChild(makeManageRow(name, 'user')); shown++; }
-  const cats = allCategoriesFromPool();
+  const cats = allCategories();
   for (const cat of cats) {
     const deckName = CAT_DECK_PREFIX + cat;
     if (matches(deckName, cat)) { list.appendChild(makeManageRow(deckName, 'category')); shown++; }
@@ -4565,13 +4596,17 @@ function refreshManageList() {
   updateManageSelectionUI();
 }
 
+const selectedCountText = () => t('decks.selected', { n: manageSel.size });
+
 function updateManageSelectionUI() {
-  $('manageCount').textContent = `${manageSel.size} selected`;
+  $('manageCount').textContent = selectedCountText();
   const mergeBtn = $('manageBulkMergeNew');
   if (mergeBtn) {
     const eligible = [...manageSel].filter(n => n !== 'default').length;
     mergeBtn.disabled = eligible < 2;
-    mergeBtn.title = eligible < 2 ? 'Select 2 or more decks to merge' : `Merge ${eligible} decks into a new deck`;
+    mergeBtn.title = eligible < 2
+      ? t('decks.mergeHint')
+      : `${t('decks.mergeNew')} (${eligible})`;
   }
 }
 
@@ -4626,8 +4661,8 @@ $('manageBulkMergeSel').addEventListener('change', async (e) => {
   const sources = [...manageSel].filter(n => n !== 'default' && n !== target);
   if (sources.length < 1) {
     const cnt = $('manageCount');
-    cnt.textContent = 'Pick at least one source deck first.';
-    setTimeout(() => cnt.textContent = `${manageSel.size} selected`, 2500);
+    cnt.textContent = t('decks.pickSource');
+    setTimeout(() => cnt.textContent = selectedCountText(), 2500);
     return;
   }
   const into = new Set(state.decks[target].uk);
