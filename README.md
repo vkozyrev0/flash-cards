@@ -11,6 +11,7 @@ A local-first PWA for studying Ukrainian vocabulary with parallel Russian, Engli
 - `manifest.json` — PWA manifest
 - `sw.js` — service worker (network-first for HTML/JSON, never caches `/api/`)
 - `icon.svg` — app icon
+- `robots.txt` — crawl policy (API and bundles disallowed; the server enforces the same paths)
 - `server.mjs` — optional translation server (static host + `/api/translate` proxy; holds the DeepSeek key)
 - `tests/logic.test.mjs` — logic checks (no browser)
 - `tests/server.test.mjs` — server checks (no browser)
@@ -57,16 +58,65 @@ DEEPSEEK_API_KEY=sk-... node server.mjs        # http://localhost:8787
 | `CLIENT_TOKEN` | — | optional shared secret, required in `x-app-token` (closed deployments) |
 | `TRUST_PROXY` | off | `1` to take the client IP from `x-forwarded-for` — set it behind a load balancer, or every client shares one bucket |
 | `MAX_INPUT_CHARS` | `200` | longest accepted input |
+| `HEADERS_TIMEOUT_MS` | `10000` | deadline for a client to finish sending request headers |
+| `REQUEST_TIMEOUT_MS` | `25000` | deadline for a whole request (above the upstream timeout, so a slow upstream reports as 502) |
+| `KEEP_ALIVE_TIMEOUT_MS` | `5000` | idle keep-alive timeout |
+| `MAX_REQUESTS_PER_SOCKET` | `100` | requests allowed on one connection before it is closed |
+| `MAX_HEADERS_COUNT` / `MAX_HEADER_BYTES` | `100` / `8192` | header count and size caps (exceeding either is a 431) |
+| `MAX_INFLIGHT` | `128` | requests in flight before any path starts shedding |
+| `API_MAX_INFLIGHT` | `8` | requests in flight before `/api/*` starts shedding |
+| `MAX_CONNECTIONS` / `MAX_CONNECTIONS_PER_IP` | `512` / `32` | open sockets allowed in total and per client IP |
+| `BOT_POLICY` | `block` | `off` to serve crawlers on the protected paths |
+| `BOT_PATTERNS` | — | extra comma-separated User-Agent substrings to treat as crawlers |
 
 `POST /api/translate` takes `{q, source, target}` and returns `{text, remaining}`; `GET /api/health`
-returns the model, the configured limits and the caller's remaining quota (never the key). Answers are
-cleaned and validated server-side (empty, identical-to-source and wrong-script results are rejected),
-mirroring the client-side checks. Rate limits are in-memory and single-process: a restart forgives
-rate limits but never the spent budget, so keep `GLOBAL_DAILY_CAP` where you want the ceiling.
+returns the model, the configured limits, the caller's remaining quota, the live in-flight and
+connection counts, and the refusal counters (never the key). Answers are cleaned and validated
+server-side (empty, identical-to-source and wrong-script results are rejected), mirroring the
+client-side checks.
 
 Deploy it anywhere that runs Node (Fly.io, Railway, Render, a VPS) — it is not a static host, because
 the key lives in the process environment. `sw.js` never caches `/api/`, so health checks and
 translations always reach the server.
+
+## What the server defends against
+
+Everything a single Node process can defend, with every bound configurable and every refusal counted:
+
+- **Slow and half-open clients.** A connection that opens and never finishes its headers, or dribbles
+  them, is closed by an explicit deadline (`HEADERS_TIMEOUT_MS`). This does not rely on Node's
+  `headersTimeout`, which is only enforced on the `connectionsCheckingInterval` tick — with the 30 s
+  default, a 10 s bound would go unenforced for up to 30 s. A whole-request deadline
+  (`REQUEST_TIMEOUT_MS`) answers 408 if the body stalls.
+- **Header floods.** Header count and size are capped (`MAX_HEADERS_COUNT`, `MAX_HEADER_BYTES`);
+  the parser answers 431 before any handler runs.
+- **Connection floods.** Total and per-IP socket caps (`MAX_CONNECTIONS`, `MAX_CONNECTIONS_PER_IP`)
+  drop excess connections immediately, and `MAX_REQUESTS_PER_SOCKET` stops one connection from
+  being reused forever.
+- **Request floods.** Concurrency is bounded (`MAX_INFLIGHT`, and a tighter `API_MAX_INFLIGHT` for
+  the money path). Past the cap a request gets **503 with `retry-after`** immediately instead of
+  being queued — queueing is what turns overload into a stall. Service resumes as soon as load
+  drops.
+- **Crawlers.** `robots.txt` declares the policy (the API and both bundles are disallowed) and the
+  server enforces the same paths for known crawler and browser-automation User-Agents with a 403.
+  The app page, `robots.txt` and `/api/health` stay reachable, so monitors and page crawlers are
+  unaffected. `BOT_POLICY=off` disables the block.
+- **Observability.** Every refusal increments a counter by reason (`rate_limit`, `ip_daily_cap`,
+  `global_daily_cap`, `concurrency_shed`, `connection_cap`, `bot_blocked`, `timeout`,
+  `headers_too_large`, `body_too_large`, `bad_request`, `origin_not_allowed`, `app_token`,
+  `upstream_failed`), readable at `GET /api/health` and logged. Logging is throttled to 20
+  lines/second so a flood cannot exhaust the process through its own log.
+
+### What this cannot do
+
+A volumetric or distributed (L3/L4) flood has to be absorbed at the edge — CDN, cloud connection
+limits, scrubbing — before it reaches this process. Nothing in `server.mjs` stops that, and the
+in-memory limits and counters are per-instance and reset on restart: a horizontally scaled deployment
+would need shared state, which is deliberately out of scope here. `User-Agent` matching and
+`robots.txt` are advisory (a hostile client can spoof a UA and ignore robots); they cut crawler cost,
+they are not a security boundary — the rate and concurrency caps are what actually bound a caller.
+For a public deployment, put a CDN in front and set `TRUST_PROXY=1` so the per-client limits see the
+real client IP.
 
 ## Study
 
