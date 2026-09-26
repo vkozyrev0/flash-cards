@@ -600,7 +600,7 @@
   .help-tips li { margin-bottom: 6px; line-height: 1.45; }
   .help-mock {
     margin-top: 8px; padding: 8px 10px; border-radius: 8px;
-    background: var(--paper-2, #f0ebde); border: 1px solid var(--line, #d8d2c2);
+    background: var(--bg-2); border: 1px solid var(--line);
     display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px;
   }
   .help-mock-ta { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.6; min-height: 60px; }
@@ -1074,6 +1074,8 @@
       --on-accent-soft: rgba(16, 19, 26, 0.72);
       --good: #6cc26c;
       --bad: #e88080;
+      /* The light tints would leave --bad (#e88080) unreadable on the danger chip. */
+      --bad-bg: rgba(232, 128, 128, 0.18);
       --card-bg: #1c1f25;
       --card-bg-2: #20242b;
       --shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 2px 4px rgba(0,0,0,0.3), 0 16px 40px -12px rgba(0,0,0,0.5);
