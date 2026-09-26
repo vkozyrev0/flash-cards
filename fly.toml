@@ -1,0 +1,62 @@
+# Fly.io deployment for the translation server (server.mjs) in API-only mode: the app is served from
+# the user's own disk or host, and only translation is remote. The DeepSeek key is a secret, never an
+# [env] entry:
+#   fly secrets set DEEPSEEK_API_KEY=...            (see README)
+#   fly secrets set ALLOWED_ORIGINS=localhost,null
+app = "flash-cards-ukr"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  HOST = "0.0.0.0"
+  # API-only: no app files in the image, only /api/* and robots.txt are served.
+  SERVE_STATIC = "0"
+  DEEPSEEK_MODEL = "deepseek-flash"
+  # Behind Fly's proxy, so per-client limits must read x-forwarded-for.
+  TRUST_PROXY = "1"
+  # Only a locally-served app may call this from a browser (localhost any port, or file:// → null).
+  # Requests without an Origin (curl, monitors) are unaffected.
+  ALLOWED_ORIGINS = "localhost,null"
+  RATE_PER_MIN = "60"
+  RATE_BURST = "20"
+  IP_DAILY_CAP = "200"
+  GLOBAL_DAILY_CAP = "1000"
+  HEADERS_TIMEOUT_MS = "10000"
+  REQUEST_TIMEOUT_MS = "25000"
+  KEEP_ALIVE_TIMEOUT_MS = "5000"
+  MAX_REQUESTS_PER_SOCKET = "100"
+  MAX_HEADERS_COUNT = "100"
+  MAX_HEADER_BYTES = "8192"
+  MAX_INFLIGHT = "128"
+  API_MAX_INFLIGHT = "8"
+  MAX_CONNECTIONS = "512"
+  MAX_CONNECTIONS_PER_IP = "32"
+  BOT_POLICY = "block"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Scale to zero when idle; the app is a personal tool, and a cold start is a second or two.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 100
+    hard_limit = 200
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

@@ -70,6 +70,8 @@ export const config = {
   maxConnectionsPerIp: Number(process.env.MAX_CONNECTIONS_PER_IP || 32),
   botPolicy: process.env.BOT_POLICY === 'off' ? 'off' : 'block',
   botPatterns: (process.env.BOT_PATTERNS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+  // API-only mode: the app is served from the user's own disk/host and only translation is remote.
+  serveStatic: process.env.SERVE_STATIC !== '0',
 };
 
 const LANGS = { uk: 'Ukrainian', ru: 'Russian', en: 'English', fi: 'Finnish' };
@@ -284,10 +286,28 @@ function onConnection(socket) {
   armHeaderDeadline(socket);
 }
 
+// Origins allowed to call the API from a browser. Entries are exact origins plus two tokens that a
+// locally-served app needs: `localhost` matches http(s)://localhost:* and http://127.0.0.1:* (any
+// port, since the local port varies), and `null` matches the "null" origin a page loaded from
+// file:// sends. Empty list = any origin.
+export function originAllowed(origin, allowed = config.allowedOrigins) {
+  if (!origin) return true;
+  if (allowed.length === 0) return true;
+  if (allowed.includes(origin)) return true;
+  if (allowed.includes('null') && origin === 'null') return true;
+  if (allowed.includes('localhost')) {
+    try {
+      const { hostname, protocol } = new URL(origin);
+      if ((protocol === 'http:' || protocol === 'https:') && (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]')) return true;
+    } catch { return false; }
+  }
+  return false;
+}
+
 function corsHeaders(req) {
   const origin = req.headers.origin;
   if (!origin) return { headers: {}, origin: null, allowed: true };
-  const allowed = config.allowedOrigins.length === 0 || config.allowedOrigins.includes(origin);
+  const allowed = originAllowed(origin);
   return {
     origin,
     allowed,
@@ -360,6 +380,10 @@ async function callDeepSeek(text, source, target) {
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
+      // deepseek-flash defaults to thinking mode, which spends the whole max_tokens budget on
+      // reasoning_content and returns an empty content with finish_reason "length" — measured
+      // against the live API. Disabled, the same call answers in ~1s using 8 output tokens.
+      thinking: { type: 'disabled' },
       temperature: 0,
       max_tokens: 200,
     }),
@@ -367,10 +391,17 @@ async function callDeepSeek(text, source, target) {
   });
   if (!res.ok) throw Object.assign(new Error(`upstream ${res.status}`), { upstreamStatus: res.status });
   const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') throw new Error('upstream returned no content');
+  const message = data?.choices?.[0]?.message;
+  const content = message?.content;
+  if (typeof content !== 'string' || !content.trim()) {
+    // Name the failure precisely: an empty content with reasoning present means thinking mode ate
+    // the budget, which is a different problem from a provider outage.
+    throw new Error(message?.reasoning_content ? 'upstream returned reasoning only (thinking mode)' : 'upstream returned no content');
+  }
+  // Models sometimes wrap JSON in a fenced block even in JSON mode.
+  const bare = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
   let parsed;
-  try { parsed = JSON.parse(content); } catch { throw new Error('upstream returned non-JSON content'); }
+  try { parsed = JSON.parse(bare); } catch { throw new Error(`upstream returned non-JSON content: ${bare.slice(0, 80)}`); }
   const value = parsed?.text ?? parsed?.translation;
   if (typeof value !== 'string') throw new Error('upstream JSON had no text field');
   return value;
@@ -570,6 +601,12 @@ export function createApp() {
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') { send(res, 405, { error: 'method not allowed' }); return; }
+    // API-only deployment: the app is served from the user's own disk or host. robots.txt is still
+    // served, because the crawl policy is about this API.
+    if (!config.serveStatic && url.pathname !== '/robots.txt') {
+      send(res, 404, { error: 'this deployment serves only /api/translate, /api/health and /robots.txt' });
+      return;
+    }
     await serveStatic(req, res, url);
   });
 
@@ -581,7 +618,7 @@ export const app = createApp();
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   app.listen(config.port, config.host, () => {
     console.log(`Ukrainian Flash Cards server on http://${config.host}:${config.port}`);
-    console.log(`  static root: ${config.staticRoot}`);
+    console.log(`  static root: ${config.serveStatic ? config.staticRoot : 'not served (SERVE_STATIC=0: API-only)'}`);
     console.log(`  proxy:       POST /api/translate -> ${config.baseUrl} (${config.model})`);
     console.log(`  api key:     ${config.apiKey ? 'configured' : 'MISSING — /api/translate will return 503'}`);
     console.log(`  limits:      ${config.ratePerMin}/min burst ${config.rateBurst} per IP, ${config.ipDailyCap}/day per IP, ${config.globalDailyCap}/day total`);

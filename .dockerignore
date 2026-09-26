@@ -1,0 +1,10 @@
+# Keep the image to the app payload: the server serves these files and nothing else needs to ship.
+.git
+.gitignore
+deploy
+.tmp
+.claude
+tests
+node_modules
+*.md
+*.log

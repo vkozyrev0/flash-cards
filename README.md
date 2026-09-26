@@ -13,8 +13,10 @@ A local-first PWA for studying Ukrainian vocabulary with parallel Russian, Engli
 - `icon.svg` — app icon
 - `robots.txt` — crawl policy (API and bundles disallowed; the server enforces the same paths)
 - `server.mjs` — optional translation server (static host + `/api/translate` proxy; holds the DeepSeek key)
+- `Dockerfile`, `.dockerignore`, `fly.toml` — the API-only Fly.io deployment (see below)
 - `tests/logic.test.mjs` — logic checks (no browser)
 - `tests/server.test.mjs` — server checks (no browser)
+- `tests/live-provider.test.mjs` — opt-in check against the real DeepSeek API (needs `DEEPSEEK_API_KEY`)
 - `README.md` — this file
 - `.gitignore` — local scratch dirs, OS and editor cruft
 
@@ -54,7 +56,8 @@ DEEPSEEK_API_KEY=sk-... node server.mjs        # http://localhost:8787
 | `RATE_PER_MIN` / `RATE_BURST` | `60` / `20` | per-client token bucket |
 | `IP_DAILY_CAP` | `500` | requests per client per UTC day |
 | `GLOBAL_DAILY_CAP` | `2000` | requests per UTC day across all clients — the budget guard |
-| `ALLOWED_ORIGINS` | any | comma-separated browser origins allowed to call the API |
+| `ALLOWED_ORIGINS` | any | comma-separated browser origins allowed to call the API. Two tokens cover a locally-served app: `localhost` matches `http(s)://localhost:*` and `http://127.0.0.1:*` on any port, and `null` matches the origin a page opened from `file://` sends. Requests with no `Origin` (curl, monitors) are always allowed |
+| `SERVE_STATIC` | on | `0` makes the deployment API-only: only `/api/translate`, `/api/health` and `/robots.txt` are served, so the app can stay on your own disk |
 | `CLIENT_TOKEN` | — | optional shared secret, required in `x-app-token` (closed deployments) |
 | `TRUST_PROXY` | off | `1` to take the client IP from `x-forwarded-for` — set it behind a load balancer, or every client shares one bucket |
 | `MAX_INPUT_CHARS` | `200` | longest accepted input |
@@ -78,6 +81,37 @@ client-side checks.
 Deploy it anywhere that runs Node (Fly.io, Railway, Render, a VPS) — it is not a static host, because
 the key lives in the process environment. `sw.js` never caches `/api/`, so health checks and
 translations always reach the server.
+
+The upstream call disables DeepSeek's thinking mode (`thinking: { type: 'disabled' }`). That is not
+cosmetic: `deepseek-flash` defaults to thinking, which spends the whole `max_tokens` budget on
+`reasoning_content` and returns an empty `content` with `finish_reason: "length"` — measured against
+the live API. Without it every translation fails with "upstream returned non-JSON content".
+
+### Deploying the server only (app stays local)
+
+Set `SERVE_STATIC=0` and the deployment serves only the API plus `robots.txt`; the app keeps working
+from your own disk or host and reaches the remote server for translation:
+
+1. Serve the app locally (any static host, or `python -m http.server 8765`) and open it.
+2. Settings → Translation → **Translation server** → paste the server URL, for example
+   `https://flash-cards-ukr.fly.dev`.
+3. Settings → **Default provider** → **App server**. The line under it says whether the server
+   answered, and how much of your daily quota is left.
+
+The server needs `ALLOWED_ORIGINS=localhost,null` for that setup, so a page on `localhost:<any port>`
+or opened from `file://` may call it. `fly.toml` and the `Dockerfile` in this repo are that deployment
+(API-only image, `ams` region, scale-to-zero, secrets for the key and the origin list):
+
+```bash
+fly apps create <your-app>                      # once
+fly secrets set DEEPSEEK_API_KEY=sk-...         # never in fly.toml
+fly secrets set ALLOWED_ORIGINS=localhost,null  # secrets override [env]
+fly deploy
+```
+
+`node tests/live-provider.test.mjs` exercises the real provider through the shipped server (it skips
+loudly without `DEEPSEEK_API_KEY`). It is what catches provider behaviour a stub cannot have — the
+thinking-mode regression above is exactly that.
 
 ## What the server defends against
 

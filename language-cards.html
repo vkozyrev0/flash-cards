@@ -1400,6 +1400,12 @@
       <span id="providerStatus" class="muted" style="flex-basis: 100%; font-size: 12px;"></span>
     </div>
     <div class="setting">
+      <label class="setting-label"><span data-i18n="settings.serverUrl">Translation server</span>
+        <span class="muted" data-i18n="settings.serverUrlHint">Leave empty when the app is served by its own server; set the URL of a remote server (for example https://your-app.fly.dev) to keep the app local and translate remotely</span>
+      </label>
+      <input type="url" id="setServerUrl" inputmode="url" placeholder="https://…" autocomplete="off" style="min-width: 260px; flex: 1;" />
+    </div>
+    <div class="setting">
       <label class="setting-label"><span data-i18n="settings.targetLangs">Translate new words to</span>
         <span class="muted" data-i18n="settings.targetLangsHint">Disabling a language skips it when adding new cards (existing cards untouched)</span>
       </label>
@@ -1801,6 +1807,8 @@ const STRINGS = {
     'settings.translation': 'Translation', 'settings.provider': 'Default provider',
     'settings.providerHint': 'Built-in dictionary first, then this provider, then the other if the result looks empty, identical, or the wrong script',
     'settings.providerServer': 'App server',
+    'settings.serverUrl': 'Translation server',
+    'settings.serverUrlHint': 'Leave empty when the app is served by its own server; set the URL of a remote server (for example https://your-app.fly.dev) to keep the app local and translate remotely',
     'server.ok': 'Translation server ready ({model})',
     'server.unavailable': 'No translation server here — Google / MyMemory are used instead',
     'settings.targetLangsHint': 'Disabling a language skips it when adding new cards (existing cards untouched)',
@@ -1886,6 +1894,8 @@ const STRINGS = {
     'settings.translation': 'Переклад', 'settings.provider': 'Провайдер за замовчуванням',
     'settings.providerHint': 'Спершу вбудований словник, далі цей провайдер, потім інший, якщо результат порожній, ідентичний або не тією абеткою',
     'settings.providerServer': 'Сервер застосунку',
+    'settings.serverUrl': 'Сервер перекладу',
+    'settings.serverUrlHint': 'Порожньо, якщо застосунок обслуговує власний сервер; вкажіть URL віддаленого сервера (наприклад https://your-app.fly.dev), щоб тримати застосунок локально, а переклад — віддалено',
     'server.ok': 'Сервер перекладу готовий ({model})',
     'server.unavailable': 'Сервера перекладу тут немає — використовуються Google / MyMemory',
     'settings.targetLangsHint': 'Вимкнена мова пропускається під час додавання нових карток (наявні не змінюються)',
@@ -1968,6 +1978,8 @@ const STRINGS = {
     'settings.translation': 'Перевод', 'settings.provider': 'Провайдер по умолчанию',
     'settings.providerHint': 'Сначала встроенный словарь, затем этот провайдер, потом другой, если результат пустой, идентичный или не тем алфавитом',
     'settings.providerServer': 'Сервер приложения',
+    'settings.serverUrl': 'Сервер перевода',
+    'settings.serverUrlHint': 'Пусто, если приложение обслуживает собственный сервер; укажите URL удалённого сервера (например https://your-app.fly.dev), чтобы держать приложение локально, а перевод — удалённо',
     'server.ok': 'Сервер перевода готов ({model})',
     'server.unavailable': 'Сервера перевода здесь нет — используются Google / MyMemory',
     'settings.targetLangsHint': 'Отключённый язык пропускается при добавлении новых карточек (существующие не меняются)',
@@ -2526,6 +2538,7 @@ function normalizeSettings(s) {
   o.audioEnabled = !!o.audioEnabled;
   o.audioRate = Math.min(2, Math.max(0.5, Number.isFinite(o.audioRate) ? o.audioRate : 0.95));
   o.defaultProvider = ['mymemory', 'server'].includes(o.defaultProvider) ? o.defaultProvider : 'google';
+  o.serverUrl = typeof o.serverUrl === 'string' ? o.serverUrl.trim().replace(/\/+$/, '') : '';
   const tl = (s && s.targetLangs) || {};
   o.targetLangs = { ru: tl.ru !== false, en: tl.en !== false, fi: tl.fi !== false };
   o.quizLimit = Math.min(500, Math.max(1, Number.isFinite(o.quizLimit) ? Math.round(o.quizLimit) : 50));
@@ -3065,10 +3078,15 @@ async function translateGoogle(text, target, source = 'uk') {
 }
 
 // Optional proxy (server.mjs). The DeepSeek key lives on the server, never here, and the server
-// enforces the rate limits. Same origin, so no CORS involved. A static-only deployment returns 404
-// for this path, which translate() treats as a failed provider and falls back from.
+// enforces the rate limits. The URL defaults to this same origin (server-hosted deployment); set
+// Settings → Translation server to point a locally-served app at a remote one.
+const translationServerUrl = () => {
+  const raw = trimText((state.settings && state.settings.serverUrl) || '');
+  return raw ? raw.replace(/\/+$/, '') : '';
+};
+
 async function translateServer(text, target, source = 'uk') {
-  const res = await fetch('./api/translate', {
+  const res = await fetch(`${translationServerUrl()}/api/translate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ q: text, source, target }),
@@ -3085,7 +3103,7 @@ async function translateServer(text, target, source = 'uk') {
 // Feature-detects the proxy so the Settings screen can say whether it is there.
 async function serverHealth() {
   try {
-    const res = await fetch('./api/health', { headers: { accept: 'application/json' } });
+    const res = await fetch(`${translationServerUrl()}/api/health`, { headers: { accept: 'application/json' } });
     if (!res.ok) return null;
     const data = await res.json();
     return data && data.ok ? data : null;
@@ -3675,6 +3693,7 @@ function renderSettings() {
   $('setAudioRateLabel').textContent = `${Number(s.audioRate).toFixed(2)}×`;
   // Translation
   $('setProvider').value = s.defaultProvider;
+  if ($('setServerUrl')) $('setServerUrl').value = s.serverUrl || '';
   $('setLangRu').checked = s.targetLangs.ru;
   $('setLangEn').checked = s.targetLangs.en;
   $('setLangFi').checked = s.targetLangs.fi;
@@ -3791,6 +3810,16 @@ document.querySelectorAll('input[name="provider"]').forEach(r => {
 $('setLangRu').addEventListener('change', (e) => { state.settings.targetLangs.ru = e.target.checked; persistSettings(); });
 $('setLangEn').addEventListener('change', (e) => { state.settings.targetLangs.en = e.target.checked; persistSettings(); });
 $('setLangFi').addEventListener('change', (e) => { state.settings.targetLangs.fi = e.target.checked; persistSettings(); });
+
+// Remote translation server URL (empty = this same origin).
+if ($('setServerUrl')) {
+  $('setServerUrl').addEventListener('change', (e) => {
+    state.settings.serverUrl = trimText(e.target.value).replace(/\/+$/, '');
+    e.target.value = state.settings.serverUrl;
+    persistSettings();
+    refreshProviderStatus(state.settings.defaultProvider);
+  });
+}
 
 $('resetSrsBtn').addEventListener('click', async () => {
   if (!await askConfirm('Reset learning stats on every card? Streak, due-time, and ✓/✗ counts will be cleared.')) return;
