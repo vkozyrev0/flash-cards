@@ -39,6 +39,8 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Translation proxy: never cached, and GET /api/health must reach the server every time.
+  if (url.pathname.startsWith('/api/')) return;
 
   if (isAppShell(req, url)) {
     e.respondWith(
