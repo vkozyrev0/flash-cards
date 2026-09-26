@@ -310,6 +310,29 @@ test('the help mockups paint a theme-aware surface', () => {
   assert.match(rule, /background: var\(--(?:bg-2|card-bg|card-bg-2)\)/);
 });
 
+const readTemplate = (src, marker) => {
+  const at = src.indexOf(marker);
+  assert.ok(at >= 0, `template ${marker}`);
+  // The marker ends with the opening backtick; its own length already includes it.
+  const start = at + marker.length - 1;
+  assert.equal(src[start], '`', `template start ${marker}`);
+  const end = src.indexOf('`', start + 1);
+  assert.ok(end > start, `unterminated template ${marker}`);
+  return src.slice(start + 1, end);
+};
+const HELP_HTML = { uk: readTemplate(script, 'uk: `'), ru: readTemplate(script, 'ru: `') };
+
+test('the uk and ru help pages carry the same mockups as the English one', () => {
+  const markup = html.slice(0, scriptStart);
+  const enHelp = markup.slice(markup.indexOf('id="helpTab"'), markup.indexOf('<section id="quizSection"'));
+  const mockClasses = (src) => [...src.matchAll(/class="((?:help-mock|hm-)[^"]*)"/g)].map((m) => m[1]);
+  const expected = mockClasses(enHelp);
+  assert.ok(expected.length > 40, `English help mockups (${expected.length} class values)`);
+  assert.equal(expected.filter((c) => c.startsWith('help-mock')).length, 8);
+  assert.deepEqual(mockClasses(HELP_HTML.uk), expected);
+  assert.deepEqual(mockClasses(HELP_HTML.ru), expected);
+});
+
 if (failed) {
   console.error(`\n${failed} failed`);
   process.exit(1);
