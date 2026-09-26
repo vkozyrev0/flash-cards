@@ -12,6 +12,8 @@ A local-first PWA for studying Ukrainian vocabulary with parallel Russian, Engli
 - `sw.js` — service worker (network-first for HTML/JSON)
 - `icon.svg` — app icon
 - `tests/logic.test.mjs` — logic checks (no browser)
+- `README.md` — this file
+- `.gitignore` — local scratch dirs, OS and editor cruft
 
 ## Run it
 

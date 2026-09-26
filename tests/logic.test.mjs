@@ -39,6 +39,7 @@ const namesFn = [
   'splitAddInput', 'applySrs', 'normalizeDeletedIds',
   'indexLexicon', 'lookupLexicon', 'lexiconHitsCard',
   'normalizeCard', 'shuffle', 'pickSessionCards',
+  'prunePoolFilters', 'applyPoolFilters',
 ];
 const namesConst = ['cardIsStudied', 'cardIsDue', 'cardIsNew'];
 const srsLine = script.match(/const SRS_INTERVALS = \[[^\]]+\];/);
@@ -57,6 +58,7 @@ const fn = new Function(`${prelude}
     applySrs, SRS_INTERVALS, cardIsStudied, cardIsDue, cardIsNew,
     indexLexicon, lookupLexicon, lexiconHitsCard, normalizeCard,
     shuffle, pickSessionCards, normalizeDeletedIds,
+    prunePoolFilters, applyPoolFilters,
   };
 `);
 const L = fn();
@@ -195,6 +197,99 @@ test('known-bad corpus rows were patched', () => {
   assert.equal(bundle.cards['ґудзик'].fi, 'nappi');
   assert.equal(bundle.cards['щодо'].en, 'regarding');
   assert.equal(bundle.cards['заохочення'].en, 'encouragement');
+});
+
+// ---- Audit-fix regressions ----
+
+test('pool search matches regardless of the case in the card', () => {
+  const cards = [
+    { id: 'knyha', uk: 'Книга', ru: 'Книга', en: 'Book', fi: 'Kirja', categories: ['noun'], streak: 0, rightCount: 0, wrongCount: 0, nextDue: 0, addedAt: 3 },
+    { id: 'stil', uk: 'Стіл', ru: 'Стол', en: 'Table', fi: 'Pöytä', categories: ['household'], streak: 0, rightCount: 0, wrongCount: 0, nextDue: 0, addedAt: 2 },
+  ];
+  const base = { q: '', category: '__all', status: '__all', sort: 'recent' };
+  const ids = (over) => L.applyPoolFilters(cards, { ...base, ...over }).map((c) => c.id);
+  // The search box lower-cases the query, so a capitalised card value must still match.
+  assert.deepEqual(ids({ q: 'книга' }), ['knyha']);
+  assert.deepEqual(ids({ q: 'book' }), ['knyha']);
+  assert.deepEqual(ids({ q: 'kirja' }), ['knyha']);
+  assert.deepEqual(ids({ q: 'стіл' }), ['stil']);
+  assert.deepEqual(ids({ q: 'zzz' }), []);
+  assert.deepEqual(ids({ category: 'noun' }), ['knyha']);
+  assert.deepEqual(ids({ status: 'new' }), ['knyha', 'stil']);
+  assert.deepEqual(ids({ sort: 'alpha' }), ['knyha', 'stil']);
+});
+
+test('prunePoolFilters clears a category that left the pool, keeps a live one', () => {
+  const filters = { q: '', category: 'verb', status: '__all', sort: 'recent' };
+  assert.equal(L.prunePoolFilters(filters, ['verb', 'food']), filters);
+  assert.deepEqual(L.prunePoolFilters(filters, ['food']), { ...filters, category: '__all' });
+  assert.deepEqual(L.prunePoolFilters(filters, []), { ...filters, category: '__all' });
+  const all = { ...filters, category: '__all' };
+  assert.equal(L.prunePoolFilters(all, []), all);
+});
+
+test('every element id the script looks up exists in the markup', () => {
+  const markup = html.slice(0, scriptStart);
+  const declared = new Set([...markup.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  const referenced = new Set([
+    ...[...script.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]),
+    ...[...script.matchAll(/getElementById\('([^']+)'\)/g)].map((m) => m[1]),
+  ]);
+  assert.deepEqual([...referenced].filter((id) => !declared.has(id)), []);
+});
+
+const STRINGS = (() => {
+  const start = script.indexOf('const STRINGS = {');
+  assert.ok(start >= 0, 'STRINGS block');
+  const open = script.indexOf('{', start);
+  let depth = 0;
+  for (let i = open; i < script.length; i++) {
+    if (script[i] === '{') depth++;
+    else if (script[i] === '}') {
+      depth--;
+      if (depth === 0) return new Function(`return ${script.slice(open, i + 1)}`)();
+    }
+  }
+  throw new Error('unterminated STRINGS');
+})();
+const i18nRefs = new Set([...html.matchAll(/data-i18n(?:-placeholder|-title|-aria-label)?="([^"]+)"/g)].map((m) => m[1]));
+for (const m of script.matchAll(/(?<![\w.$])t\('([a-zA-Z0-9.]+)'/g)) i18nRefs.add(m[1]);
+
+test('every referenced UI string is translated in all three languages', () => {
+  for (const key of i18nRefs) {
+    for (const lang of ['en', 'uk', 'ru']) {
+      assert.ok(STRINGS[lang][key], `${lang} is missing "${key}"`);
+    }
+  }
+});
+
+test('no translation is defined but never used', () => {
+  assert.deepEqual(Object.keys(STRINGS.en).filter((k) => !i18nRefs.has(k)), []);
+});
+
+test('uk and ru define exactly the English key set', () => {
+  const en = Object.keys(STRINGS.en).sort();
+  assert.deepEqual(Object.keys(STRINGS.uk).sort(), en);
+  assert.deepEqual(Object.keys(STRINGS.ru).sort(), en);
+});
+
+test('the documented SRS schedule matches SRS_INTERVALS', () => {
+  assert.equal(STRINGS.en['settings.srsIntervals'].split('→').length, L.SRS_INTERVALS.length - 1);
+});
+
+test('filled accent surfaces use the on-accent token that dark mode flips', () => {
+  const cssRule = (selector) => {
+    const at = html.indexOf(`\n  ${selector} {`);
+    assert.ok(at >= 0, `rule ${selector}`);
+    return html.slice(at, html.indexOf('}', at));
+  };
+  assert.match(html, /--on-accent: #ffffff;/);
+  assert.match(html, /--on-accent: #10131a;/);
+  for (const selector of ['button.primary', '.pill:has(input:checked)', '.tab.active', '.deck-picker-item.active']) {
+    assert.match(cssRule(selector), /color: var\(--on-accent\)/, selector);
+  }
+  // button:hover would otherwise repaint the active tab a light colour under white text.
+  assert.match(cssRule('.tab.active:hover'), /background: var\(--accent\)/);
 });
 
 if (failed) {
