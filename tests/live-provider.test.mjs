@@ -40,7 +40,6 @@ const base = `http://127.0.0.1:${port}`;
 const deadline = Date.now() + 8000;
 let up = false;
 while (Date.now() < deadline && !up) {
-  try { up = (await fetch(`${base}/api/health`)).signal; } catch {}
   try { const r = await fetch(`${base}/api/health`); up = r.ok; } catch {}
   if (!up) await new Promise((r) => setTimeout(r, 100));
 }

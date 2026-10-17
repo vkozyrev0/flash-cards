@@ -10,12 +10,14 @@ A local-first PWA for studying Ukrainian vocabulary with parallel Russian, Engli
 - `index.html` — redirect shim to `language-cards.html`
 - `manifest.json` — PWA manifest
 - `sw.js` — service worker (network-first for HTML/JSON, never caches `/api/`)
-- `icon.svg` — app icon
+- `icon.svg` — vector app icon
+- `icon-180.png`, `icon-192.png`, `icon-512.png` — raster icons for iOS and the PWA manifest
 - `robots.txt` — crawl policy (API and bundles disallowed; the server enforces the same paths)
 - `server.mjs` — optional translation server (static host + `/api/translate` proxy; holds the DeepSeek key)
 - `Dockerfile`, `.dockerignore`, `fly.toml` — the API-only Fly.io deployment (see below)
 - `tests/logic.test.mjs` — logic checks (no browser)
 - `tests/server.test.mjs` — server checks (no browser)
+- `tests/browser.test.mjs` — opt-in headless browser checks (needs Edge/Chrome; set `EDGE_PATH` if it is not the default Windows path)
 - `tests/live-provider.test.mjs` — opt-in check against the real DeepSeek API (needs `DEEPSEEK_API_KEY`)
 - `README.md` — this file
 - `.gitignore` — local scratch dirs, OS and editor cruft
@@ -33,6 +35,7 @@ Then visit the printed URL. `index.html` redirects to the app.
 
 Logic checks (no browser): `node tests/logic.test.mjs`
 Server checks (no browser): `node tests/server.test.mjs`
+Browser flows (opt-in, headless Edge/Chrome): `node tests/browser.test.mjs`
 
 First visit loads ~5,875 cards from `ukr-cards-categorized.json`. After that the pool is yours: deleting a card is sticky, and **Settings → Sync with bundle** only adds *new* bundled cards (not ones you deleted).
 
@@ -52,14 +55,14 @@ DEEPSEEK_API_KEY=sk-... node server.mjs        # http://localhost:8787
 | `DEEPSEEK_API_KEY` | — | required for `/api/translate`; without it the app is still served and the proxy answers 503 |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | upstream base URL |
 | `DEEPSEEK_MODEL` | `deepseek-flash` | model used for translation |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | listen address |
+| `PORT` / `HOST` | `8787` / `127.0.0.1` | listen address. Set `HOST=0.0.0.0` in a container or to serve the LAN |
 | `RATE_PER_MIN` / `RATE_BURST` | `60` / `20` | per-client token bucket |
 | `IP_DAILY_CAP` | `500` | requests per client per UTC day |
 | `GLOBAL_DAILY_CAP` | `2000` | requests per UTC day across all clients — the budget guard |
-| `ALLOWED_ORIGINS` | any | comma-separated browser origins allowed to call the API. Two tokens cover a locally-served app: `localhost` matches `http(s)://localhost:*` and `http://127.0.0.1:*` on any port, and `null` matches the origin a page opened from `file://` sends. Requests with no `Origin` (curl, monitors) are always allowed |
+| `ALLOWED_ORIGINS` | `localhost,null` | comma-separated browser origins allowed to call the API. Same-origin requests are always allowed, so the app served by this process works without listing its public hostname. Two tokens cover a locally-served app: `localhost` matches `http(s)://localhost:*` and `http://127.0.0.1:*` on any port, and `null` matches the origin a page opened from `file://` sends. An explicit empty value allows any origin (not recommended). Requests with no `Origin` (curl, monitors) are always allowed |
 | `SERVE_STATIC` | on | `0` makes the deployment API-only: only `/api/translate`, `/api/health` and `/robots.txt` are served, so the app can stay on your own disk |
 | `CLIENT_TOKEN` | — | optional shared secret, required in `x-app-token` (closed deployments) |
-| `TRUST_PROXY` | off | `1` to take the client IP from `x-forwarded-for` — set it behind a load balancer, or every client shares one bucket |
+| `TRUST_PROXY` | off | `1` behind a proxy. Prefers `fly-client-ip` when the process is running on Fly (`FLY_APP_NAME` is set), otherwise takes the **last** `x-forwarded-for` hop (the one your proxy appended). Earlier hops are client-supplied and must not be trusted; behind a CDN, configure the CDN to pass the real address |
 | `MAX_INPUT_CHARS` | `200` | longest accepted input |
 | `HEADERS_TIMEOUT_MS` | `10000` | deadline for a client to finish sending request headers |
 | `REQUEST_TIMEOUT_MS` | `25000` | deadline for a whole request (above the upstream timeout, so a slow upstream reports as 502) |
@@ -68,7 +71,7 @@ DEEPSEEK_API_KEY=sk-... node server.mjs        # http://localhost:8787
 | `MAX_HEADERS_COUNT` / `MAX_HEADER_BYTES` | `100` / `8192` | header count and size caps (exceeding either is a 431) |
 | `MAX_INFLIGHT` | `128` | requests in flight before any path starts shedding |
 | `API_MAX_INFLIGHT` | `8` | requests in flight before `/api/*` starts shedding |
-| `MAX_CONNECTIONS` / `MAX_CONNECTIONS_PER_IP` | `512` / `32` | open sockets allowed in total and per client IP |
+| `MAX_CONNECTIONS` / `MAX_CONNECTIONS_PER_IP` | `512` / `32` | open sockets allowed in total and per peer address. Behind a proxy the peer is the proxy itself, so the per-IP cap is effectively deployment-wide |
 | `BOT_POLICY` | `block` | `off` to serve crawlers on the protected paths |
 | `BOT_PATTERNS` | — | extra comma-separated User-Agent substrings to treat as crawlers |
 
@@ -85,7 +88,8 @@ translations always reach the server.
 The upstream call disables DeepSeek's thinking mode (`thinking: { type: 'disabled' }`). That is not
 cosmetic: `deepseek-flash` defaults to thinking, which spends the whole `max_tokens` budget on
 `reasoning_content` and returns an empty `content` with `finish_reason: "length"` — measured against
-the live API. Without it every translation fails with "upstream returned non-JSON content".
+the live API. Without it the proxy records `upstream returned reasoning only (thinking mode)` and the
+client receives a generic 502.
 
 ### Deploying the server only (app stays local)
 
@@ -103,9 +107,9 @@ or opened from `file://` may call it. `fly.toml` and the `Dockerfile` in this re
 (API-only image, `ams` region, scale-to-zero, secrets for the key and the origin list):
 
 ```bash
-fly apps create <your-app>                      # once
-fly secrets set DEEPSEEK_API_KEY=sk-...         # never in fly.toml
-fly secrets set ALLOWED_ORIGINS=localhost,null  # secrets override [env]
+fly apps create flash-cards-ukr                       # or change app = ... in fly.toml and every -a below
+fly secrets set -a flash-cards-ukr DEEPSEEK_API_KEY=sk-...         # never in fly.toml
+fly secrets set -a flash-cards-ukr ALLOWED_ORIGINS=localhost,null  # secrets override [env]
 fly deploy
 ```
 
@@ -146,11 +150,16 @@ Everything a single Node process can defend, with every bound configurable and e
 A volumetric or distributed (L3/L4) flood has to be absorbed at the edge — CDN, cloud connection
 limits, scrubbing — before it reaches this process. Nothing in `server.mjs` stops that, and the
 in-memory limits and counters are per-instance and reset on restart: a horizontally scaled deployment
-would need shared state, which is deliberately out of scope here. `User-Agent` matching and
-`robots.txt` are advisory (a hostile client can spoof a UA and ignore robots); they cut crawler cost,
+would need shared state, which is deliberately out of scope here. The Fly config scales to zero, so
+the daily caps restart with the machine and bound one warm window, not a UTC day. For a hard daily
+ceiling, set `auto_stop_machines = false` and `min_machines_running = 1`, or move the counters to
+shared storage. `User-Agent` matching and `robots.txt` are advisory (a hostile client can spoof a UA
+and ignore robots); they cut crawler cost,
 they are not a security boundary — the rate and concurrency caps are what actually bound a caller.
 For a public deployment, put a CDN in front and set `TRUST_PROXY=1` so the per-client limits see the
-real client IP.
+real client IP. The server trusts the last `x-forwarded-for` hop or `fly-client-ip`, never the earlier
+client-supplied hops. A CDN in front of Fly needs its own trusted-proxy configuration, because Fly then
+sees the CDN address rather than the visitor.
 
 ## Study
 
@@ -162,11 +171,12 @@ real client IP.
 
 - Export / import a JSON backup from Settings. Import offers **Merge**, **Replace all**, or **Cancel**.
 - If the browser storage quota is full, the app warns instead of failing silently — export a backup, then delete unused words.
-- Installed copies update the HTML, card JSON, and lexicon over the network (service worker cache `ukr-cards-v3`). Other assets stay cache-first.
+- Installed copies update the HTML, card JSON, and lexicon over the network (service worker cache `ukr-cards-v3`). The icon and other cached assets are cache-first. Browsers fetch `manifest.json` outside the service worker, so the SW's copy does not affect which manifest they read.
+- A state saved by an older bundle is migrated when it loads: the cards the old bundle collapsed are moved to their distinct ids. Run **Sync with bundle** once after the upgrade to pull the plain words in beside them.
 
 ## Deploying
 
-Any static host works. HTML and JSON are fetched network-first, so shipped updates reach installed users without a cache-name bump. Bump `CACHE_VERSION` in `sw.js` when changing other cached assets (icon, manifest).
+Any static host works. HTML and JSON are fetched network-first, so shipped updates reach installed users without a cache-name bump. Bump `CACHE_VERSION` in `sw.js` when changing the cached icons. Browsers fetch `manifest.json` outside the service worker, so the manifest needs no bump for the browser to see it (the SW still precaches a copy for the offline shell).
 
 ## Privacy
 

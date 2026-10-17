@@ -28,3 +28,6 @@ yarn-error.log*
 node_modules/
 .env
 .env.local
+
+# Audit trail and scratch (show-me-your-work keeps this local)
+.audit/

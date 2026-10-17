@@ -9,6 +9,9 @@ const ASSETS = [
   './lexicon.json',
   './manifest.json',
   './icon.svg',
+  './icon-180.png',
+  './icon-192.png',
+  './icon-512.png',
   './index.html',
 ];
 
@@ -47,7 +50,9 @@ self.addEventListener('fetch', (e) => {
       fetch(req).then((res) => {
         if (res.ok) {
           const copy = res.clone();
-          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+          // The event stays alive until respondWith settles; tie the cache write to it so a worker
+          // shutdown cannot drop a response the browser already received.
+          e.waitUntil(caches.open(CACHE_VERSION).then((c) => c.put(req, copy)));
         }
         return res;
       }).catch(async () => {
@@ -67,7 +72,7 @@ self.addEventListener('fetch', (e) => {
       hit || fetch(req).then((res) => {
         if (res.ok) {
           const copy = res.clone();
-          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+          e.waitUntil(caches.open(CACHE_VERSION).then((c) => c.put(req, copy)));
         }
         return res;
       })
