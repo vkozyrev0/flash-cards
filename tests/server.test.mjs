@@ -10,7 +10,9 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import http from 'node:http';
-import { dirname, join } from 'node:path';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
@@ -55,9 +57,18 @@ const upstreamPort = upstream.address().port;
 
 // ---- server instances ----------------------------------------------------------------------
 const servers = [];
-let nextPort = 8791;
+async function freePort() {
+  return await new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const port = probe.address().port;
+      probe.close(() => resolve(port));
+    });
+  });
+}
 async function startServer(env = {}) {
-  const port = nextPort++;
+  const port = await freePort();
   const child = spawn(process.execPath, [join(root, 'server.mjs')], {
     env: {
       ...process.env,
@@ -166,6 +177,8 @@ await test('translates through the proxy and returns the cleaned text', async ()
   assert.equal(res.status, 200);
   assert.equal(res.json.text, 'book');
   assert.equal(res.json.provider, 'deepseek');
+  assert.equal(typeof res.json.remaining.ipDay, 'number', 'the response reports the remaining daily quota');
+  assert.equal(typeof res.json.remaining.globalDay, 'number');
   assert.equal(upstreamCalls.length, 1);
 });
 
@@ -173,11 +186,15 @@ await test('the key is sent to the upstream as a bearer token, never by the clie
   assert.equal(upstreamCalls[0].auth, `Bearer ${KEY}`);
 });
 
-await test('the upstream request asks for JSON and names the model', () => {
+await await test('the upstream request asks for JSON and names the model', () => {
   const body = JSON.parse(upstreamCalls[0].body);
   assert.equal(body.model, 'deepseek-flash');
   assert.equal(body.response_format.type, 'json_object');
   assert.equal(body.temperature, 0);
+  // deepseek-flash defaults to thinking mode, which returns an empty content field and breaks
+  // every translation. This is the regression the README documents.
+  assert.equal(body.thinking.type, 'disabled', 'thinking mode must stay disabled');
+  assert.equal(upstreamCalls[0].url, '/chat/completions', 'the upstream path must be the chat endpoint');
   assert.match(body.messages[0].content, /json/i);
   assert.ok(body.messages[1].content.includes('книга'));
   assert.match(body.messages[1].content, /into English/);
@@ -278,9 +295,12 @@ await test('an allowed origin gets CORS headers on the preflight and the respons
   assert.equal(res.headers.get('access-control-allow-origin'), 'http://localhost:5173');
 });
 
-await test('the API key never appears in any response body', () => {
+await test('the API key never appears in any response body', async () => {
   assert.ok(seenBodies.length > 10, 'expected the client to have made calls');
   for (const body of seenBodies) assert.ok(!body.includes(KEY), 'key leaked in a body');
+  const port = Number(new URL(main.base).port);
+  const healthBody = (await httpCall(port, '/api/health')).body;
+  assert.ok(!healthBody.includes(KEY), 'health must not report the key');
 });
 
 await test('serves the app itself and refuses to serve its own source or tests', async () => {
@@ -297,13 +317,50 @@ await test('serves the app itself and refuses to serve its own source or tests',
 });
 
 await test('path traversal is refused', async () => {
-  const res = await fetch(`${main.base}/../package.json`, { redirect: 'manual' });
+  // fetch() resolves dot segments before sending, so use the encoded spelling the server sees.
+  const port = Number(new URL(main.base).port);
+  const res = await httpCall(port, '/%2e%2e%2fpackage.json');
   assert.ok(res.status === 404 || res.status === 403, `got ${res.status}`);
 });
 
 await test('a POST to a static path is refused', async () => {
   const res = await fetch(`${main.base}/language-cards.html`, { method: 'POST', body: 'x' });
   assert.equal(res.status, 405);
+});
+
+function rawRequest(port, text) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, '127.0.0.1', () => socket.write(text));
+    let data = '';
+    socket.on('data', (d) => { data += d; });
+    socket.on('error', () => resolve(data));
+    socket.on('close', () => resolve(data));
+    setTimeout(() => { socket.destroy(); resolve(data); }, 3000);
+  });
+}
+
+await test('a malformed path or Host header is a 400, not a process crash', async () => {
+  const srv = await startServer({ RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const badPath = await rawRequest(port, 'GET /% HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n');
+  assert.match(badPath, /HTTP\/1\.1 400/, `decoded path failure must be a 400, got ${JSON.stringify(badPath.slice(0, 80))}`);
+  const badHost = await rawRequest(port, 'GET /language-cards.html HTTP/1.1\r\nHost: [\r\nConnection: close\r\n\r\n');
+  assert.match(badHost, /HTTP\/1\.1 400/, `malformed Host must be a 400, got ${JSON.stringify(badHost.slice(0, 80))}`);
+  // The point of the test: the process is still alive and serving.
+  assert.equal((await health(port)).ok, true);
+  assert.equal((await httpCall(port, '/language-cards.html')).status, 200);
+});
+
+await test('the static blocklist holds for Windows path spellings', async () => {
+  const srv = await startServer({ RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  // Windows treats "\" as a separator, ignores case, and accepts "file::$DATA"; each spelling
+  // must still resolve to the blocklist rather than disclose server source or dotfiles.
+  for (const path of ['/%5cserver.mjs', '/%5c.git%5cconfig', '/%5c.claude%5csettings.local.json', '/SERVER.MJS', '/server.mjs.', '/server.mjs::$DATA', '/Tests/logic.test.mjs', '/%2ftests/logic.test.mjs', '/%5ctests%5clogic.test.mjs', '/%2fserver.mjs']) {
+    const res = await httpCall(port, path);
+    assert.notEqual(res.status, 200, `${path} must not be served (got ${res.status})`);
+  }
+  assert.equal((await httpCall(port, '/language-cards.html')).status, 200, 'the app itself still serves');
 });
 
 // ---- limit instances -----------------------------------------------------------------------
@@ -332,6 +389,90 @@ await test('the per-IP daily cap is enforced and reported', async () => {
   assert.match(capped.json.error, /daily limit/);
   const health = await call('/api/health', undefined, {}, 'GET');
   assert.equal(health.json.limits.ipDayUsed, 3);
+});
+
+await test('invalid numeric env values fall back to the documented limits instead of disabling them', async () => {
+  const srv = await startServer({
+    RATE_PER_MIN: 'abc', RATE_BURST: 'abc', IP_DAILY_CAP: 'abc', GLOBAL_DAILY_CAP: 'abc',
+    MAX_INFLIGHT: 'abc', API_MAX_INFLIGHT: 'abc',
+  });
+  const h = await health(Number(new URL(srv.base).port));
+  assert.deepEqual(
+    [h.limits.ratePerMin, h.limits.rateBurst, h.limits.ipDailyCap, h.limits.globalDailyCap],
+    [60, 20, 500, 2000],
+    'NaN must not become an unbounded limiter',
+  );
+  assert.deepEqual([h.inflight.maxTotal, h.inflight.maxApi], [128, 8]);
+});
+
+await test('a negative burst falls back, and a zero refill rate still answers a finite retry-after', async () => {
+  const negative = await startServer({ RATE_BURST: '-1', RATE_PER_MIN: '600' });
+  assert.equal((await health(Number(new URL(negative.base).port))).limits.rateBurst, 20);
+  const stuck = await startServer({ RATE_PER_MIN: '0', RATE_BURST: '0' });
+  const res = await makeClient(stuck.base)('/api/translate', { q: 'книга', source: 'uk', target: 'en' });
+  assert.equal(res.status, 429);
+  assert.match(res.headers.get('retry-after'), /^\d+$/, 'retry-after must be a finite integer');
+});
+
+await test('a request deadline below the header deadline is raised instead of crashing at startup', async () => {
+  const srv = await startServer({ HEADERS_TIMEOUT_MS: '5000', REQUEST_TIMEOUT_MS: '100' });
+  assert.equal((await health(Number(new URL(srv.base).port))).ok, true);
+});
+
+await test('a malformed request still consumes quota', async () => {
+  // The limiter runs before body validation on purpose: a bad request must not be free.
+  const tight = await startServer({ IP_DAILY_CAP: '1', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const call = makeClient(tight.base);
+  const bad = await call('/api/translate', 'not json');
+  assert.equal(bad.status, 400);
+  const good = await call('/api/translate', { q: 'книга', source: 'uk', target: 'en' });
+  assert.equal(good.status, 429, 'the malformed call must have spent the single daily slot');
+});
+
+await test('TRUST_PROXY uses the hop the proxy appended, not the client-supplied prefix', async () => {
+  const body = JSON.stringify({ q: 'книга', source: 'uk', target: 'en' });
+  const trusted = await startServer({ TRUST_PROXY: '1', IP_DAILY_CAP: '1', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const trustedPort = Number(new URL(trusted.base).port);
+  const callTrusted = (xff, fly = null) => httpCall(trustedPort, '/api/translate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': xff, ...(fly ? { 'fly-client-ip': fly } : {}) },
+    body,
+  });
+  assert.equal((await callTrusted('10.0.0.1, 203.0.113.1')).status, 200);
+  assert.equal((await callTrusted('10.0.0.2, 203.0.113.1')).status, 429, 'rotating the prefix must not reset the cap');
+  assert.equal((await callTrusted('10.0.0.3, 203.0.113.2')).status, 200, 'a different last hop is a different client');
+
+  const fly = await startServer({ TRUST_PROXY: '1', IP_DAILY_CAP: '1', RATE_PER_MIN: '600', RATE_BURST: '10', FLY_APP_NAME: 'test' });
+  const flyPort = Number(new URL(fly.base).port);
+  const callFly = (xff, flyIp) => httpCall(flyPort, '/api/translate', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': xff, 'fly-client-ip': flyIp }, body,
+  });
+  assert.equal((await callFly('10.0.0.1', '198.51.100.1')).status, 200);
+  assert.equal((await callFly('10.0.0.2', '198.51.100.1')).status, 429, 'Fly-Client-IP wins over the chain');
+
+  const plain = await startServer({ TRUST_PROXY: '0', IP_DAILY_CAP: '1', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const plainPort = Number(new URL(plain.base).port);
+  const callPlain = (xff) => httpCall(plainPort, '/api/translate', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': xff }, body,
+  });
+  assert.equal((await callPlain('203.0.113.1')).status, 200);
+  assert.equal((await callPlain('203.0.113.2')).status, 429, 'without TRUST_PROXY every caller shares the socket address');
+});
+
+await test('a same-origin browser request is allowed even with a restricted allowlist', async () => {
+  const srv = await startServer({ ALLOWED_ORIGINS: 'https://allowed.example', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const body = JSON.stringify({ q: 'книга', source: 'uk', target: 'en' });
+  const own = `http://127.0.0.1:${port}`;
+  const same = await httpCall(port, '/api/translate', {
+    method: 'POST', headers: { 'content-type': 'application/json', origin: own }, body,
+  });
+  assert.equal(same.status, 200, 'the app served by this process must be able to call its own API');
+  assert.equal(same.headers['access-control-allow-origin'], own);
+  const evil = await httpCall(port, '/api/translate', {
+    method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://evil.example' }, body,
+  });
+  assert.equal(evil.status, 403, 'a foreign origin is still refused');
 });
 
 await test('the global daily cap stops the server even for a fresh client', async () => {
@@ -378,9 +519,18 @@ await test('a half-open client is cut off inside the bound while normal requests
   assert.equal(normal.status, 200, 'a normal request during a slow-client attack must succeed');
   const closed = await untilClose(slow, 5000);
   assert.equal(closed.timedOut, false, 'the server must close a half-open socket inside the bound');
-  assert.ok(closed.ms < 3000, `closed after ${closed.ms}ms, expected well under the 400ms bound plus slack`);
+  assert.ok(closed.ms < 1000, `closed after ${closed.ms}ms, expected well under the 400ms bound plus slack`);
   const h = await health(port);
   assert.ok(h.refusals.timeout >= 1, `timeout counter should rise, got ${h.refusals.timeout}`);
+});
+
+await test('a header count over the cap is refused and counted', async () => {
+  const srv = await startServer({ MAX_HEADERS_COUNT: '10', HEADERS_TIMEOUT_MS: '2000', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const padding = Array.from({ length: 20 }, (_, i) => `X-H${i}: a\r\n`).join('');
+  const result = await rawRequest(port, `GET /language-cards.html HTTP/1.1\r\nHost: x\r\n${padding}Connection: close\r\n\r\n`);
+  assert.match(result, /431|400/, `expected a refusal, got ${JSON.stringify(result.slice(0, 60))}`);
+  assert.ok((await health(port)).refusals.headers_too_large >= 1, 'the header cap must be counted');
 });
 
 await test('oversized request headers are refused and counted', async () => {
@@ -408,9 +558,12 @@ await test('a client cannot hold more connections than the per-IP cap', async ()
   assert.ok(extraResult.ms < 2000, `dropped after ${extraResult.ms}ms`);
   held.forEach((s) => s.destroy());
   // Read the status endpoint only after releasing the held sockets: with the cap at 2, the probe
-  // itself would be the connection over the limit.
-  await new Promise((r) => setTimeout(r, 150));
-  const h = await health(port);
+  // itself would be the connection over the limit. Poll instead of guessing a fixed delay.
+  let h = null;
+  for (let i = 0; i < 40 && !h; i++) {
+    try { h = await health(port); } catch { await new Promise((r) => setTimeout(r, 50)); }
+  }
+  assert.ok(h, 'health must recover after the held sockets close');
   assert.ok(h.refusals.connection_cap >= 1, `connection_cap counter should rise, got ${h.refusals.connection_cap}`);
   assert.equal(h.connections.maxPerIp, 2);
 });
@@ -422,8 +575,29 @@ await test('one connection is limited to the configured number of requests', asy
   for (let i = 0; i < 3; i++) socket.write('GET /language-cards.html HTTP/1.1\r\nHost: x\r\n\r\n');
   const result = await untilClose(socket, 4000);
   const responses = (result.data.match(/HTTP\/1\.1 200/g) || []).length;
-  assert.ok(responses <= 2, `expected at most 2 responses on one socket, got ${responses}`);
+  assert.equal(responses, 2, `expected exactly 2 responses on one socket, got ${responses}`);
   assert.ok(/connection: close/i.test(result.data), 'the last response must close the connection');
+});
+
+await test('a stalled request body gets a 408 and is counted', async () => {
+  const srv = await startServer({ HEADERS_TIMEOUT_MS: '300', REQUEST_TIMEOUT_MS: '500', RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const result = await rawRequest(port, 'POST /api/translate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{"q":');
+  assert.match(result, /HTTP\/1\.1 408/, 'a body that never finishes must hit the whole-request deadline');
+  assert.ok((await health(port)).refusals.timeout >= 1, 'the timeout must be counted');
+});
+
+await test('HEAD returns headers without a body for the app, robots and health', async () => {
+  const port = Number(new URL(main.base).port);
+  const page = await httpCall(port, '/language-cards.html', { method: 'HEAD' });
+  assert.equal(page.status, 200);
+  assert.ok(Number(page.headers['content-length']) > 0, 'HEAD keeps the representation length');
+  assert.equal(page.body, '', 'HEAD must not send a body');
+  for (const path of ['/robots.txt', '/api/health']) {
+    const res = await httpCall(port, path, { method: 'HEAD' });
+    assert.equal(res.status, 200, `${path} HEAD status`);
+    assert.equal(res.body, '', `${path} HEAD body`);
+  }
 });
 
 await test('excess concurrent API requests are shed with retry-after, then service recovers', async () => {
@@ -436,8 +610,8 @@ await test('excess concurrent API requests are shed with retry-after, then servi
   })));
   const shed = burst.filter((r) => r.status === 503);
   const served = burst.filter((r) => r.status === 200);
-  assert.ok(shed.length >= 1, `expected at least one shed request, got statuses ${burst.map((r) => r.status).join(',')}`);
-  assert.ok(served.length >= 1, 'some requests must still be served');
+  assert.ok(served.length <= 2, `the API cap is 2, so at most 2 overlap; got ${served.length}`);
+  assert.ok(shed.length >= 6, `the other 6 must be shed; got statuses ${burst.map((r) => r.status).join(',')}`);
   assert.ok(shed.every((r) => Number(r.headers['retry-after']) >= 1), 'shed responses must carry retry-after');
   assert.match(shed[0].body, /server busy/);
   upstreamDelayMs = 0;
@@ -475,6 +649,33 @@ await test('crawlers are refused on the protected paths and served everywhere el
 
   const h = await health(port);
   assert.ok(h.refusals.bot_blocked >= 3, `bot_blocked counter should rise, got ${h.refusals.bot_blocked}`);
+});
+
+await test('percent-encoded protected paths are still refused to crawlers', async () => {
+  const srv = await startServer({ RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  const botUa = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+  for (const path of ['/%75kr-cards-categorized.json', '/lexicon%2Ejson', '/%61pi/translate']) {
+    const res = await httpCall(port, path, { headers: { 'user-agent': botUa } });
+    assert.equal(res.status, 403, `${path} must be behind the crawler policy`);
+  }
+  const human = await httpCall(port, '/%75kr-cards-categorized.json', { headers: { 'user-agent': BROWSER_UA } });
+  assert.equal(human.status, 200, 'decoding must not break the static route for real clients');
+});
+
+await test('encoded traversal cannot read outside the static root', async () => {
+  const staticRoot = mkdtempSync(join(tmpdir(), 'fc-static-'));
+  const secretName = `secret-${basename(staticRoot)}.txt`;
+  writeFileSync(join(staticRoot, 'inside.txt'), 'inside');
+  writeFileSync(join(staticRoot, '..', secretName), 'SECRET-OUTSIDE');
+  const srv = await startServer({ STATIC_ROOT: staticRoot, RATE_PER_MIN: '600', RATE_BURST: '10' });
+  const port = Number(new URL(srv.base).port);
+  for (const path of [`/..%2f${secretName}`, `/%2e%2e%2f${secretName}`, `/..%5c${secretName}`]) {
+    const res = await httpCall(port, path);
+    assert.notEqual(res.status, 200, `${path} must not be served`);
+    assert.ok(!res.body.includes('SECRET-OUTSIDE'), `${path} leaked a file outside the root`);
+  }
+  assert.equal((await httpCall(port, '/inside.txt')).status, 200, 'files inside the root still serve');
 });
 
 await test('robots.txt declares the policy the server enforces', async () => {
@@ -626,7 +827,10 @@ await test('a locally-served app can call a remote server (localhost and null or
 });
 
 await test('originAllowed matches exactly what it claims to', async () => {
-  const { originAllowed } = await import('../server.mjs');
+  const { originAllowed, config } = await import('../server.mjs');
+  if (process.env.ALLOWED_ORIGINS === undefined) {
+    assert.deepEqual(config.allowedOrigins, ['localhost', 'null'], 'the default allowlist is the local app, not any origin');
+  }
   assert.equal(originAllowed(undefined, ['localhost']), true, 'no Origin (curl, monitors) is allowed');
   assert.equal(originAllowed('http://localhost:8787', ['localhost']), true);
   assert.equal(originAllowed('http://127.0.0.1:1', ['localhost']), true);

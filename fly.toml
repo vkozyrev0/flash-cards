@@ -33,13 +33,17 @@ primary_region = "ams"
   MAX_INFLIGHT = "128"
   API_MAX_INFLIGHT = "8"
   MAX_CONNECTIONS = "512"
-  MAX_CONNECTIONS_PER_IP = "32"
+  # Behind Fly's proxy the accept-time peer is the proxy, so this is effectively a deployment-wide
+  # socket cap rather than per visitor. Keep it comfortably above the concurrency limits.
+  MAX_CONNECTIONS_PER_IP = "128"
   BOT_POLICY = "block"
 
 [http_service]
   internal_port = 8080
   force_https = true
   # Scale to zero when idle; the app is a personal tool, and a cold start is a second or two.
+  # In-memory daily counters reset on each cold start, so GLOBAL_DAILY_CAP bounds one warm window,
+  # not a UTC day. Turn autostop off if you need a hard daily ceiling.
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
