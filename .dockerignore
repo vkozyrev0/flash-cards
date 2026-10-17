@@ -8,3 +8,8 @@ tests
 node_modules
 *.md
 *.log
+# Local secrets and private scratch that .gitignore already protects
+.env
+.env.local
+_*.json
+.audit

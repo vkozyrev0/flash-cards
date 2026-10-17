@@ -12,14 +12,16 @@
 //   DEEPSEEK_API_KEY        required for /api/translate; without it the app is served but the proxy 503s
 //   DEEPSEEK_BASE_URL       default https://api.deepseek.com (point this at a stub in tests)
 //   DEEPSEEK_MODEL          default deepseek-flash
-//   PORT / HOST             default 8787 / 0.0.0.0
+//   PORT / HOST             default 8787 / 127.0.0.1 (set HOST=0.0.0.0 in a container or LAN)
 //   RATE_PER_MIN            sustained requests per minute per IP, default 60
 //   RATE_BURST              burst allowance per IP, default 20
 //   IP_DAILY_CAP            requests per IP per UTC day, default 500
 //   GLOBAL_DAILY_CAP        requests per UTC day across all IPs, default 2000
-//   ALLOWED_ORIGINS         comma-separated browser origins; empty allows any (see README)
+//   ALLOWED_ORIGINS         comma-separated browser origins; default localhost,null, empty allows
+//                           any. Same-origin requests are always allowed (see README)
 //   CLIENT_TOKEN            optional shared secret required in x-app-token
-//   TRUST_PROXY             1 to read the client IP from x-forwarded-for
+//   TRUST_PROXY             1 to read the client IP from the last x-forwarded-for hop (or
+//                           fly-client-ip when running on Fly)
 //   MAX_INPUT_CHARS         default 200
 //   STATIC_ROOT             default the directory holding this file
 //   HEADERS_TIMEOUT_MS      deadline for a client to finish sending request headers, default 10000
@@ -41,33 +43,53 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+// A typo in a limit must not silently disable that limit: a non-finite or out-of-range value
+// falls back to the documented default and says so at startup.
+function envNumber(name, fallback, min = 0) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min) {
+    console.warn(`ignoring ${name}=${JSON.stringify(raw)}; using ${fallback}`);
+    return fallback;
+  }
+  return value;
+}
+
+const headersTimeoutMs = envNumber('HEADERS_TIMEOUT_MS', 10000, 1);
+const requestTimeoutMs = Math.max(envNumber('REQUEST_TIMEOUT_MS', 25000, 1), headersTimeoutMs);
+
 export const config = {
-  port: Number(process.env.PORT || 8787),
-  host: process.env.HOST || '0.0.0.0',
+  port: envNumber('PORT', 8787, 1),
+  host: process.env.HOST || '127.0.0.1',
   apiKey: process.env.DEEPSEEK_API_KEY || '',
   baseUrl: (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
   model: process.env.DEEPSEEK_MODEL || 'deepseek-flash',
-  ratePerMin: Number(process.env.RATE_PER_MIN || 60),
-  rateBurst: Number(process.env.RATE_BURST || 20),
-  ipDailyCap: Number(process.env.IP_DAILY_CAP || 500),
-  globalDailyCap: Number(process.env.GLOBAL_DAILY_CAP || 2000),
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
+  ratePerMin: envNumber('RATE_PER_MIN', 60),
+  rateBurst: envNumber('RATE_BURST', 20),
+  ipDailyCap: envNumber('IP_DAILY_CAP', 500),
+  globalDailyCap: envNumber('GLOBAL_DAILY_CAP', 2000),
+  // Default to a locally-served app. Same-origin requests are always allowed by corsHeaders, so a
+  // server-hosted deployment still works; an explicit empty value keeps the old allow-any behavior.
+  allowedOrigins: (process.env.ALLOWED_ORIGINS === undefined ? 'localhost,null' : process.env.ALLOWED_ORIGINS)
+    .split(',').map((s) => s.trim()).filter(Boolean),
   clientToken: process.env.CLIENT_TOKEN || '',
   trustProxy: process.env.TRUST_PROXY === '1',
-  maxInputChars: Number(process.env.MAX_INPUT_CHARS || 200),
+  maxInputChars: envNumber('MAX_INPUT_CHARS', 200, 1),
   staticRoot: resolve(process.env.STATIC_ROOT || HERE),
   maxBodyBytes: 8192,
-  upstreamTimeoutMs: 20000,
-  headersTimeoutMs: Number(process.env.HEADERS_TIMEOUT_MS || 10000),
-  requestTimeoutMs: Number(process.env.REQUEST_TIMEOUT_MS || 25000),
-  keepAliveTimeoutMs: Number(process.env.KEEP_ALIVE_TIMEOUT_MS || 5000),
-  maxRequestsPerSocket: Number(process.env.MAX_REQUESTS_PER_SOCKET || 100),
-  maxHeadersCount: Number(process.env.MAX_HEADERS_COUNT || 100),
-  maxHeaderBytes: Number(process.env.MAX_HEADER_BYTES || 8192),
-  maxInflight: Number(process.env.MAX_INFLIGHT || 128),
-  apiMaxInflight: Number(process.env.API_MAX_INFLIGHT || 8),
-  maxConnections: Number(process.env.MAX_CONNECTIONS || 512),
-  maxConnectionsPerIp: Number(process.env.MAX_CONNECTIONS_PER_IP || 32),
+  // Leave room below the whole-request deadline so a slow upstream reports as a 502, not a 408.
+  upstreamTimeoutMs: Math.max(100, Math.min(20000, Math.floor(requestTimeoutMs * 0.8))),
+  headersTimeoutMs,
+  requestTimeoutMs,
+  keepAliveTimeoutMs: envNumber('KEEP_ALIVE_TIMEOUT_MS', 5000, 1),
+  maxRequestsPerSocket: envNumber('MAX_REQUESTS_PER_SOCKET', 100, 1),
+  maxHeadersCount: envNumber('MAX_HEADERS_COUNT', 100, 1),
+  maxHeaderBytes: envNumber('MAX_HEADER_BYTES', 8192, 1),
+  maxInflight: envNumber('MAX_INFLIGHT', 128, 1),
+  apiMaxInflight: envNumber('API_MAX_INFLIGHT', 8, 1),
+  maxConnections: envNumber('MAX_CONNECTIONS', 512, 1),
+  maxConnectionsPerIp: envNumber('MAX_CONNECTIONS_PER_IP', 32, 1),
   botPolicy: process.env.BOT_POLICY === 'off' ? 'off' : 'block',
   botPatterns: (process.env.BOT_PATTERNS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   // API-only mode: the app is served from the user's own disk/host and only translation is remote.
@@ -112,7 +134,9 @@ function logRefusal(reason, detail) {
   }
   if (logState.emitted >= logState.maxPerWindow) { logState.suppressed++; return; }
   logState.emitted++;
-  const bits = [detail && detail.ip && `ip=${detail.ip}`, detail && detail.path && `path=${detail.path}`, detail && detail.ua && `ua=${String(detail.ua).slice(0, 60)}`].filter(Boolean);
+  // Detail can carry upstream text and client-controlled headers. Keep one log line per refusal.
+  const clean = (value) => String(value).replace(/[\r\n\t]+/g, ' ').slice(0, 120);
+  const bits = [detail && detail.ip && `ip=${clean(detail.ip)}`, detail && detail.path && `path=${clean(detail.path)}`, detail && detail.ua && `ua=${clean(detail.ua).slice(0, 60)}`].filter(Boolean);
   console.warn(`refused ${reason}${bits.length ? ' ' + bits.join(' ') : ''}`);
 }
 
@@ -137,7 +161,13 @@ export function createLimiter(opts = {}) {
   return {
     check(ip, now = Date.now()) {
       const day = dayKey(now);
-      if (global.day !== day) global = { day, count: 0 };
+      // A new UTC day resets the daily ceilings; drop the per-client maps with them so neither
+      // grows without bound as clients come and go.
+      if (global.day !== day) {
+        global = { day, count: 0 };
+        buckets.clear();
+        ipDays.clear();
+      }
       if (global.count >= globalDailyCap) {
         return { ok: false, status: 429, reason: 'global daily cap reached', counter: 'global_daily_cap', retryAfter: 60 };
       }
@@ -152,7 +182,12 @@ export function createLimiter(opts = {}) {
       b.at = now;
       if (b.tokens < 1) {
         buckets.set(ip, b);
-        return { ok: false, status: 429, reason: 'rate limit exceeded', counter: 'rate_limit', retryAfter: Math.max(1, Math.ceil((1 - b.tokens) / refillPerMs / 1000)) };
+        // A zero refill rate is a deliberate "no calls" setting; retry-after must still be a
+        // finite header value rather than Infinity.
+        const retryAfter = refillPerMs > 0
+          ? Math.min(3600, Math.max(1, Math.ceil((1 - b.tokens) / refillPerMs / 1000)))
+          : 3600;
+        return { ok: false, status: 429, reason: 'rate limit exceeded', counter: 'rate_limit', retryAfter };
       }
       b.tokens -= 1;
       buckets.set(ip, b);
@@ -179,10 +214,17 @@ export function createLimiter(opts = {}) {
 const limiter = createLimiter();
 
 export function clientIp(req) {
-  const raw = config.trustProxy && req.headers['x-forwarded-for']
-    ? String(req.headers['x-forwarded-for']).split(',')[0].trim()
-    : req.socket.remoteAddress || 'unknown';
-  return raw.replace(/^::ffff:/, '');
+  const socketIp = String(req.socket.remoteAddress || 'unknown');
+  if (!config.trustProxy) return socketIp.replace(/^::ffff:/, '');
+  // Fly sets Fly-Client-IP at its edge, so it beats anything the caller sent. Trust it only when
+  // the process is actually on Fly (the platform sets FLY_APP_NAME/FLY_ALLOC_ID); another proxy
+  // may forward a client-supplied header of the same name. Otherwise take the LAST x-forwarded-for
+  // hop: proxies append the address they saw, while every earlier entry is client-supplied.
+  const onFly = Boolean(process.env.FLY_APP_NAME || process.env.FLY_ALLOC_ID);
+  const flyIp = onFly ? req.headers['fly-client-ip'] : null;
+  const hops = String(req.headers['x-forwarded-for'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const raw = flyIp ? String(flyIp) : (hops.length ? hops[hops.length - 1] : socketIp);
+  return raw.trim().replace(/^::ffff:/, '');
 }
 
 // ---- admission control -----------------------------------------------------------------------
@@ -307,7 +349,11 @@ export function originAllowed(origin, allowed = config.allowedOrigins) {
 function corsHeaders(req) {
   const origin = req.headers.origin;
   if (!origin) return { headers: {}, origin: null, allowed: true };
-  const allowed = originAllowed(origin);
+  // The app served by this process calls the API from its own origin; that must work without
+  // requiring every deployment to enumerate its own public hostname in ALLOWED_ORIGINS.
+  let sameOrigin = false;
+  try { sameOrigin = new URL(origin).host.toLowerCase() === String(req.headers.host || '').toLowerCase(); } catch {}
+  const allowed = originAllowed(origin) || sameOrigin;
   return {
     origin,
     allowed,
@@ -324,9 +370,18 @@ function corsHeaders(req) {
 }
 
 function send(res, status, payload, extraHeaders = {}) {
+  // The request deadline can answer 408 before a slow handler finishes, and a client can leave
+  // mid-flight. Writing a second response on that socket throws, so report failure instead.
+  if (res.destroyed || res.writableEnded) return false;
   const body = JSON.stringify(payload);
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body), ...extraHeaders });
-  res.end(body);
+  try {
+    res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body), ...extraHeaders });
+    res.end(body);
+    return true;
+  } catch {
+    if (!res.destroyed) res.destroy();
+    return false;
+  }
 }
 
 const shed = (res, cors, retryAfter = 1) => send(res, 503, { error: 'server busy, retry shortly' }, { ...cors.headers, 'retry-after': String(retryAfter) });
@@ -424,10 +479,22 @@ const MIME = {
 // Server source and tests are not part of the app payload; dotfiles are never served.
 const BLOCKED = [/^\/server\.mjs$/, /^\/tests(\/|$)/, /(^|\/)\./];
 
-async function serveStatic(req, res, url) {
-  let pathname = decodeURIComponent(url.pathname);
+async function serveStatic(req, res, pathname) {
+  if (pathname.includes('\0')) { send(res, 400, { error: 'malformed path' }); return; }
+  // Windows accepts "\" as a separator and silently drops trailing dots and spaces, so both can
+  // step around the blocklist below. Canonicalize so the check sees the path the filesystem will.
+  // Collapse the doubled slashes an encoded separator produces too: on Windows "//tests/x"
+  // normalizes as a UNC path, which hid the tests directory from the blocklist.
+  pathname = pathname.replace(/\\/g, '/').replace(/^\/{2,}/, '/');
+  if (process.platform === 'win32' && pathname.split('/').some((seg) => seg.includes(':') || /[. ]$/.test(seg))) {
+    send(res, 404, { error: 'not found' });
+    return;
+  }
+  // Check the path the filesystem will actually use: encoded separators, doubled slashes and
+  // encoded ".." segments must not hide a blocked file behind an unnormalized spelling.
+  const blockedPath = normalize(pathname).replace(/\\/g, '/').toLowerCase();
+  if (BLOCKED.some((re) => re.test(blockedPath))) { send(res, 404, { error: 'not found' }); return; }
   if (pathname.endsWith('/')) pathname += 'index.html';
-  if (BLOCKED.some((re) => re.test(pathname))) { send(res, 404, { error: 'not found' }); return; }
   const file = join(config.staticRoot, normalize(pathname));
   if (!file.startsWith(config.staticRoot + sep) && file !== config.staticRoot) {
     countRefusal('bad_request', { path: pathname });
@@ -515,8 +582,27 @@ export function createApp() {
     }
   });
 
-  server.on('request', async (req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  async function handleRequest(req, res) {
+    let url;
+    try {
+      url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    } catch {
+      // A malformed Host header used to throw out of the request listener, and an unhandled
+      // rejection exits the process. A bad request line is a client error, not a server crash.
+      countRefusal('bad_request', { path: 'url' });
+      send(res, 400, { error: 'malformed request' });
+      return;
+    }
+    // Route and police the path the handler will actually use. Checking the raw percent-encoded
+    // spelling let a crawler fetch the bundle as /%75kr-cards-categorized.json.
+    let pathname;
+    try {
+      pathname = decodeURIComponent(url.pathname);
+    } catch {
+      countRefusal('bad_request', { path: 'path' });
+      send(res, 400, { error: 'malformed path' });
+      return;
+    }
     const ip = clientIp(req);
     const socket = req.socket;
     socket[COMPLETED] = true;
@@ -526,18 +612,23 @@ export function createApp() {
     // Whole-request deadline. The upstream call has its own shorter timeout, so a slow upstream
     // surfaces as a 502 rather than as this 408.
     const requestTimer = setTimeout(() => {
-      countRefusal('timeout', { ip, path: url.pathname });
+      countRefusal('timeout', { ip, path: pathname });
       if (!res.headersSent) send(res, 408, { error: 'request timeout' });
       else res.destroy();
     }, config.requestTimeoutMs);
     res.on('close', () => {
       clearTimeout(requestTimer);
-      if (!socket.destroyed) armHeaderDeadline(socket);
+      if (!socket.destroyed) {
+        // Only data after this response starts a new request. Without the reset, every idle
+        // keep-alive socket looks like a client that already sent something and inflates timeout.
+        socket[SAW_DATA] = false;
+        armHeaderDeadline(socket);
+      }
     });
 
     // Admission control: refuse rather than queue once the caps are reached.
     if (!globalAdmission.acquire()) {
-      countRefusal('concurrency_shed', { ip, path: `${url.pathname} (global)` });
+      countRefusal('concurrency_shed', { ip, path: `${pathname} (global)` });
       shed(res, { headers: {} });
       return;
     }
@@ -546,34 +637,34 @@ export function createApp() {
 
     const cors = corsHeaders(req);
 
-    if (url.pathname.startsWith('/api/') && !apiAdmission.acquire()) {
-      countRefusal('concurrency_shed', { ip, path: `${url.pathname} (api)` });
+    if (pathname.startsWith('/api/') && !apiAdmission.acquire()) {
+      countRefusal('concurrency_shed', { ip, path: `${pathname} (api)` });
       shed(res, cors);
       return;
     }
-    if (url.pathname.startsWith('/api/')) apiHeld = true;
+    if (pathname.startsWith('/api/')) apiHeld = true;
 
-    if (config.botPolicy !== 'off' && isCrawlerProtected(url.pathname)) {
+    if (config.botPolicy !== 'off' && isCrawlerProtected(pathname)) {
       const verdict = classifyClient(req.headers['user-agent']);
       if (verdict.bot) {
-        countRefusal('bot_blocked', { ip, path: url.pathname, ua: req.headers['user-agent'] });
+        countRefusal('bot_blocked', { ip, path: pathname, ua: req.headers['user-agent'] });
         send(res, 403, { error: 'crawlers are not allowed here; see /robots.txt' }, cors.headers);
         return;
       }
     }
 
     if (req.method === 'OPTIONS') {
-      if (!cors.allowed) { countRefusal('origin_not_allowed', { ip, path: url.pathname }); send(res, 403, { error: 'origin not allowed' }); return; }
+      if (!cors.allowed) { countRefusal('origin_not_allowed', { ip, path: pathname }); send(res, 403, { error: 'origin not allowed' }); return; }
       res.writeHead(204, cors.headers);
       res.end();
       return;
     }
 
-    if (url.pathname.startsWith('/api/')) {
-      if (!cors.allowed) { countRefusal('origin_not_allowed', { ip, path: url.pathname }); send(res, 403, { error: 'origin not allowed' }); return; }
+    if (pathname.startsWith('/api/')) {
+      if (!cors.allowed) { countRefusal('origin_not_allowed', { ip, path: pathname }); send(res, 403, { error: 'origin not allowed' }); return; }
       // Health is deliberately open (model name, limits and counters only, never the key): the app
       // probes it to detect whether a proxy is deployed, including in token-protected deployments.
-      if (url.pathname === '/api/health') {
+      if (pathname === '/api/health') {
         send(res, 200, {
           ok: true,
           provider: 'deepseek',
@@ -588,11 +679,11 @@ export function createApp() {
         return;
       }
       if (config.clientToken && req.headers['x-app-token'] !== config.clientToken) {
-        countRefusal('app_token', { ip, path: url.pathname });
+        countRefusal('app_token', { ip, path: pathname });
         send(res, 401, { error: 'missing or wrong app token' }, cors.headers);
         return;
       }
-      if (url.pathname === '/api/translate' && req.method === 'POST') {
+      if (pathname === '/api/translate' && req.method === 'POST') {
         await handleTranslate(req, res, cors, ip);
         return;
       }
@@ -603,11 +694,19 @@ export function createApp() {
     if (req.method !== 'GET' && req.method !== 'HEAD') { send(res, 405, { error: 'method not allowed' }); return; }
     // API-only deployment: the app is served from the user's own disk or host. robots.txt is still
     // served, because the crawl policy is about this API.
-    if (!config.serveStatic && url.pathname !== '/robots.txt') {
+    if (!config.serveStatic && pathname !== '/robots.txt') {
       send(res, 404, { error: 'this deployment serves only /api/translate, /api/health and /robots.txt' });
       return;
     }
-    await serveStatic(req, res, url);
+    await serveStatic(req, res, pathname);
+  }
+
+  server.on('request', (req, res) => {
+    handleRequest(req, res).catch((err) => {
+      countRefusal('bad_request', { path: `unhandled ${err && err.message}` });
+      if (!res.headersSent) send(res, 400, { error: 'bad request' });
+      else if (!res.destroyed) res.destroy();
+    });
   });
 
   return server;

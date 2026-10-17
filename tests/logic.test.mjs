@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Extracts pure helpers from language-cards.html and asserts the audit-fix behaviors.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -40,6 +40,8 @@ const namesFn = [
   'indexLexicon', 'lookupLexicon', 'lexiconHitsCard',
   'normalizeCard', 'shuffle', 'pickSessionCards',
   'prunePoolFilters', 'applyPoolFilters',
+  'activeDeckIsValid', 'pickCardId', 'safeDeckName', 'addCardUnique', 'mergeImport', 'sameCard',
+  'migrateBundleHomonyms', 'pickNewCardId', 'shouldStoreCard', 'blockedByTombstone',
 ];
 const namesConst = ['cardIsStudied', 'cardIsDue', 'cardIsNew'];
 const srsLine = script.match(/const SRS_INTERVALS = \[[^\]]+\];/);
@@ -48,6 +50,7 @@ assert.ok(srsLine, 'SRS_INTERVALS');
 const prelude = [
   'let LEXICON = { by: { uk: new Map(), ru: new Map(), en: new Map(), fi: new Map() }, size: 0 };',
   srsLine[0],
+  extractDecl(script, 'const', 'LEGACY_BUNDLE_MOVES'),
   ...namesConst.map((n) => extractDecl(script, 'const', n)),
   ...namesFn.map((n) => extractDecl(script, 'function', n)),
 ].join('\n');
@@ -58,7 +61,9 @@ const fn = new Function(`${prelude}
     applySrs, SRS_INTERVALS, cardIsStudied, cardIsDue, cardIsNew,
     indexLexicon, lookupLexicon, lexiconHitsCard, normalizeCard,
     shuffle, pickSessionCards, normalizeDeletedIds,
-    prunePoolFilters, applyPoolFilters,
+    prunePoolFilters, applyPoolFilters, activeDeckIsValid, pickCardId, safeDeckName,
+    addCardUnique, mergeImport, sameCard, migrateBundleHomonyms, pickNewCardId,
+    shouldStoreCard, blockedByTombstone,
   };
 `);
 const L = fn();
@@ -93,6 +98,19 @@ test('isValidFor accepts 24/7 as English and rejects Latin as Ukrainian', () => 
 test('splitAddInput keeps comma phrases when newlines are present', () => {
   assert.deepEqual(L.splitAddInput('hello, world\nthanks'), ['hello, world', 'thanks']);
   assert.deepEqual(L.splitAddInput('hello, world, thanks'), ['hello', 'world', 'thanks']);
+});
+
+test('splitAddInput leaves 24/7 and equals signs literal', () => {
+  assert.deepEqual(L.splitAddInput('24/7'), ['24/7']);
+  assert.deepEqual(L.splitAddInput('hello/world'), ['hello', 'world']);
+  assert.deepEqual(L.splitAddInput('кіт = cat'), ['кіт = cat']);
+});
+
+test('safeDeckName keeps internal and prototype names out of the deck namespace', () => {
+  assert.equal(L.safeDeckName('food'), 'food');
+  assert.equal(L.safeDeckName('cat:food'), 'deck:cat:food');
+  assert.equal(L.safeDeckName('__proto__'), 'deck:__proto__');
+  assert.equal(L.safeDeckName('constructor'), 'deck:constructor');
 });
 
 test('looksUntranslated catches same-text and MyMemory junk', () => {
@@ -151,6 +169,135 @@ test('lexicon exact match wins; ambiguous reverse lookup is ignored', () => {
   assert.equal(L.lookupLexicon('table', 'en').uk, 'стіл');
 });
 
+test('ambiguous reverse lookup is ignored instead of picking a homonym', () => {
+  L.indexLexicon([
+    { uk: 'стіл', ru: 'стол', en: 'table', fi: 'pöytä' },
+    { uk: 'таблиця', ru: 'таблица', en: 'table', fi: 'taulukko' },
+  ]);
+  assert.equal(L.lookupLexicon('table', 'en'), null, 'two Ukrainian words share this English form');
+  assert.equal(L.lookupLexicon('стіл', 'uk').en, 'table', 'a forward lookup stays unambiguous');
+  L.indexLexicon([
+    { uk: 'книга', ru: 'книга', en: 'book', fi: 'kirja' },
+    { uk: 'стіл', ru: 'стол', en: 'table', fi: 'pöytä' },
+    { uk: 'стіл (кухня)', ru: 'кухня', en: 'cuisine', fi: 'keittiö' },
+  ]);
+});
+
+test('normalizeCard preserves an explicit homonym id', () => {
+  const n = L.normalizeCard({ id: 'лист#leaf', uk: 'лист', en: 'leaf' });
+  assert.equal(n.id, 'лист#leaf', 'an id that differs from uk is the stable identity');
+});
+
+test('pickCardId keeps a second source word as a homonym instead of overwriting the first', () => {
+  const cards = { 'книга': { id: 'книга', uk: 'книга', ru: 'книга', en: 'book', fi: 'kirja' } };
+  assert.equal(L.pickCardId(cards, { id: 'книга', uk: 'книга' }, 'en', 'book'), 'книга', 'the same source word maps to the same card');
+  assert.equal(L.pickCardId(cards, { id: 'книга', uk: 'книга' }, 'en', 'volume'), 'книга#volume');
+  cards['книга#volume'] = { id: 'книга#volume', uk: 'книга', en: 'volume' };
+  assert.equal(L.pickCardId(cards, { id: 'книга', uk: 'книга' }, 'en', 'volume'), 'книга#volume', 'a repeated add is idempotent');
+  assert.equal(L.pickCardId(cards, { id: 'книга', uk: 'книга' }, 'en', 'tome'), 'книга#tome');
+});
+
+test('addCardUnique suffixes a colliding id instead of overwriting', () => {
+  const cards = {};
+  assert.equal(L.addCardUnique(cards, { id: 'можна', uk: 'можна' }), 'можна');
+  assert.equal(L.addCardUnique(cards, { id: 'можна', uk: 'Можна?' }), 'можна#2');
+  assert.equal(cards['можна'].uk, 'можна');
+  assert.equal(cards['можна#2'].uk, 'Можна?');
+  assert.equal(L.addCardUnique(cards, { id: 'можна', uk: 'Можна.' }), 'можна#3');
+});
+
+test('shouldStoreCard rejects a card with no Ukrainian side', () => {
+  assert.equal(L.shouldStoreCard({ uk: '', en: 'chat' }, 'ru'), false, 'a failed uk translation is not stored');
+  assert.equal(L.shouldStoreCard({ uk: 'кіт', en: 'cat' }, 'ru'), true);
+  assert.equal(L.shouldStoreCard({ uk: '' }, 'uk'), true, 'the uk source always supplies its own text');
+});
+
+test('a tombstone blocks its exact id, not a homonym', () => {
+  assert.equal(L.blockedByTombstone({ id: 'можна' }, ['можна']), true);
+  assert.equal(L.blockedByTombstone({ id: 'можна#may-i' }, ['можна']), false);
+  assert.equal(L.blockedByTombstone({ id: 'можна' }, null), false);
+});
+
+test('pickNewCardId keeps a tombstoned plain id free for the plain word', () => {
+  const tombstoned = (id) => id === 'можна';
+  assert.equal(L.pickNewCardId({}, { id: 'можна', uk: 'можна' }, 'uk', 'можна', tombstoned), 'можна', 'a deliberate re-add reuses its id');
+  assert.equal(L.pickNewCardId({}, { id: 'можна', uk: 'Можна?' }, 'uk', 'Можна?', tombstoned), 'можна#2', 'a sentence must not claim the plain tombstone');
+});
+
+test('addCardUnique reuses the same card repeated across decks', () => {
+  const cards = {};
+  const card = { id: 'x', uk: 'x', ru: 'x', en: 'ex', fi: 'x' };
+  assert.equal(L.addCardUnique(cards, { ...card }), 'x');
+  assert.equal(L.addCardUnique(cards, { ...card }), 'x', 'a repeat must not become x#2');
+  assert.equal(Object.keys(cards).length, 1);
+});
+
+test('mergeImport keeps local progress and unions decks', () => {
+  const target = { cards: { x: { id: 'x', uk: 'x', streak: 5 } }, decks: { default: { uk: ['x'] } } };
+  const cards = { x: { id: 'x', uk: 'x', streak: 99 }, y: { id: 'y', uk: 'y', streak: 1 } };
+  const decks = { default: { uk: ['x', 'y'] }, extra: { uk: ['y'] } };
+  L.mergeImport(target, cards, decks);
+  assert.equal(target.cards.x.streak, 5, 'the local card wins, including its history');
+  assert.equal(target.cards.y.streak, 1, 'a new imported card is added');
+  assert.deepEqual(target.decks.default.uk, ['x', 'y']);
+  assert.deepEqual(target.decks.extra.uk, ['y']);
+});
+
+test('migrateBundleHomonyms moves the old collided survivor to its rekeyed id', () => {
+  const s = {
+    cards: {
+      'можна': { id: 'можна', uk: 'Можна.', ru: 'Можно.', en: 'It is allowed.', fi: 'Saa.', streak: 3, rightCount: 3, wrongCount: 0, nextDue: 1 },
+    },
+    decks: { default: { uk: ['можна'] }, mine: { uk: ['можна', 'x'] } },
+  };
+  assert.equal(L.migrateBundleHomonyms(s), 1);
+  assert.ok(!s.cards['можна'], 'the plain id is freed for the bundle word');
+  assert.equal(s.cards['можна#it-is-allowed'].streak, 3, 'progress moves with the card');
+  assert.deepEqual(s.decks.mine.uk, ['можна#it-is-allowed', 'x']);
+  assert.deepEqual(s.decks.default.uk, ['можна#it-is-allowed']);
+});
+
+test('migrateBundleHomonyms merges into a rekeyed card that already exists', () => {
+  const s = {
+    cards: {
+      'можна': { id: 'можна', uk: 'Можна.', ru: 'Можно.', en: 'It is allowed.', fi: 'Saa.', streak: 4, rightCount: 4, wrongCount: 0, nextDue: 5 },
+      'можна#it-is-allowed': { id: 'можна#it-is-allowed', uk: 'Можна.', ru: 'Можно.', en: 'It is allowed.', fi: 'Saa.', streak: 0, rightCount: 0, wrongCount: 0, nextDue: 0 },
+    },
+    decks: { default: { uk: ['можна', 'можна#it-is-allowed'] } },
+  };
+  assert.equal(L.migrateBundleHomonyms(s), 1);
+  assert.ok(!s.cards['можна']);
+  assert.equal(s.cards['можна#it-is-allowed'].streak, 4);
+  assert.deepEqual(s.decks.default.uk, ['можна#it-is-allowed']);
+});
+
+test('migrateBundleHomonyms leaves the plain card alone', () => {
+  const s = { cards: { 'можна': { id: 'можна', uk: 'можна' } }, decks: { default: { uk: ['можна'] } } };
+  assert.equal(L.migrateBundleHomonyms(s), 0);
+  assert.equal(s.cards['можна'].uk, 'можна');
+});
+
+test('activeDeckIsValid rejects inherited and stale names', () => {
+  const cards = { x: { categories: ['noun'] } };
+  assert.equal(L.activeDeckIsValid(cards, { default: { uk: [] } }, 'default'), true);
+  assert.equal(L.activeDeckIsValid(cards, {}, 'cat:noun'), true);
+  assert.equal(L.activeDeckIsValid(cards, {}, 'cat:verb'), false);
+  assert.equal(L.activeDeckIsValid(cards, {}, '__proto__'), false);
+  assert.equal(L.activeDeckIsValid(cards, {}, undefined), false);
+});
+
+test('SRS_INTERVALS match the documented schedule', () => {
+  assert.deepEqual(L.SRS_INTERVALS, [
+    0,
+    10 * 60e3,
+    24 * 3600e3,
+    3 * 24 * 3600e3,
+    7 * 24 * 3600e3,
+    14 * 24 * 3600e3,
+    30 * 24 * 3600e3,
+  ]);
+});
+
 test('lexiconHitsCard skips disambiguated homonym ids', () => {
   const hit = { uk: 'стіл', en: 'table', fi: 'pöytä' };
   assert.equal(L.lexiconHitsCard(hit, { id: 'стіл', uk: 'стіл' }), true);
@@ -170,8 +317,8 @@ test('normalizeDeletedIds uniques and norms', () => {
 
 test('HTML no longer inlines the card bundle', () => {
   assert.equal(html.includes('id="bundledData"'), false);
-  assert.match(script, /fetch\('\.\/ukr-cards-categorized\.json'\)/);
-  assert.match(script, /fetch\('\.\/lexicon\.json'\)/);
+  assert.match(script, /fetch(?:WithTimeout)?\('\.\/ukr-cards-categorized\.json'/);
+  assert.match(script, /fetch(?:WithTimeout)?\('\.\/lexicon\.json'/);
 });
 
 const lexicon = JSON.parse(readFileSync(join(root, 'lexicon.json'), 'utf8'));
@@ -186,11 +333,72 @@ test('lexicon and bundle JSON parse with expected shape', () => {
   }
 });
 
+test('the PWA manifest ships raster icons that exist', () => {
+  const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
+  for (const size of ['192x192', '512x512']) {
+    const icon = (manifest.icons || []).find((i) => i.sizes === size);
+    assert.ok(icon, `manifest is missing a ${size} icon`);
+    assert.ok(existsSync(join(root, icon.src.replace(/^\.\//, ''))), `${icon.src} does not exist`);
+  }
+  assert.ok(existsSync(join(root, 'icon-180.png')), 'the iOS touch icon exists');
+});
+
 test('service worker is v3 and lists lexicon + bundle', () => {
   assert.match(sw, /ukr-cards-v3/);
   assert.match(sw, /lexicon\.json/);
   assert.match(sw, /ukr-cards-categorized\.json/);
   assert.match(sw, /network-first|isAppShell/);
+});
+
+test('every bundle card has a unique id after normalization', () => {
+  const ids = Object.entries(bundle.cards).map(([key, c]) => L.normalizeCard({ id: key, ...c }).id);
+  assert.equal(new Set(ids).size, ids.length, 'normalization must not collapse two bundle cards');
+});
+
+const loadFrom = (() => {
+  const statePrelude = [
+    'let store = {};',
+    "const localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };",
+    "const STORAGE_KEY = 'ukr-cards-v3';",
+    extractDecl(script, 'const', 'DEFAULT_SETTINGS'),
+    ...['trimText', 'norm', 'normalizeCard', 'sameCard', 'addCardUnique', 'normalizeDeletedIds', 'safeDeckName', 'activeDeckIsValid', 'normalizeSettings', 'loadState']
+      .map((n) => extractDecl(script, 'function', n)),
+  ].join('\n');
+  return new Function(`${statePrelude}
+    return (seed) => { store = seed; return loadState(); };
+  `)();
+})();
+
+test('loadState keeps the cards when active is missing', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({
+      cards: { x: { id: 'x', uk: 'x', en: 'ex' } },
+      decks: { default: { uk: ['x'] } },
+    }),
+  });
+  assert.equal(s.active, 'default');
+  assert.equal(s.cards.x.en, 'ex', 'cards must survive a state without an active deck');
+});
+
+test('loadState falls back from a stale category deck but keeps a live one', () => {
+  const cards = { x: { id: 'x', uk: 'x', en: 'ex', categories: ['noun'] } };
+  const stale = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards, decks: { default: { uk: ['x'] } }, active: 'cat:verb' }),
+  });
+  assert.equal(stale.active, 'default');
+  const live = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards, decks: { default: { uk: ['x'] } }, active: 'cat:noun' }),
+  });
+  assert.equal(live.active, 'cat:noun');
+});
+
+test('loadState creates a default deck when the state has none', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards: { x: { id: 'x', uk: 'x' } }, decks: {} }),
+  });
+  assert.equal(s.active, 'default');
+  assert.equal(s.cards.x.uk, 'x');
+  assert.deepEqual(s.decks.default, { uk: [] });
 });
 
 test('known-bad corpus rows were patched', () => {
@@ -221,7 +429,7 @@ test('pool search matches regardless of the case in the card', () => {
 
 test('prunePoolFilters clears a category that left the pool, keeps a live one', () => {
   const filters = { q: '', category: 'verb', status: '__all', sort: 'recent' };
-  assert.equal(L.prunePoolFilters(filters, ['verb', 'food']), filters);
+  assert.deepEqual(L.prunePoolFilters(filters, ['verb', 'food']), filters);
   assert.deepEqual(L.prunePoolFilters(filters, ['food']), { ...filters, category: '__all' });
   assert.deepEqual(L.prunePoolFilters(filters, []), { ...filters, category: '__all' });
   const all = { ...filters, category: '__all' };

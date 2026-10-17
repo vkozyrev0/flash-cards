@@ -10,7 +10,9 @@
 <meta name="format-detection" content="telephone=no" />
 <link rel="manifest" href="./manifest.json" />
 <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-<link rel="apple-touch-icon" href="./icon.svg" />
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+<!-- iOS ignores SVG touch icons and the web app manifest, so this must be a raster PNG. -->
+<link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png" />
 <title>Ukrainian Flash Cards</title>
 <style>
   :root {
@@ -284,6 +286,11 @@
   td.r { color: var(--good); font-weight: 600; }
   td.w { color: var(--bad); font-weight: 600; }
   .hidden { display: none !important; }
+  /* Live-region text for assistive tech; visible layout must not reserve space for it. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
   .err { color: var(--bad); font-size: 12px; }
   /* Tabs */
   .tabs {
@@ -1127,6 +1134,8 @@
 </head>
 <body>
 
+<div id="quizLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
 <div id="busyOverlay" class="visible" role="status" aria-live="polite" aria-hidden="false">
   <div class="busy-card">
     <div class="spinner"></div>
@@ -1170,7 +1179,7 @@
   <section id="addSection">
     <h2 data-i18n="words.addHeading">Add words</h2>
     <p class="muted" data-i18n="words.addIntro">One word or phrase per line. Common words use a built-in dictionary; others are machine-translated. Each batch goes into its own deck — review translations there (click to edit, ↻ to re-translate).</p>
-    <textarea id="wordsInput" placeholder="привіт&#10;дякую&#10;книга" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+    <textarea id="wordsInput" data-i18n-aria-label="words.addHeading" aria-label="Add words" placeholder="привіт&#10;дякую&#10;книга" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
     <div class="row" style="margin-top: 8px;">
       <span class="muted" data-i18n="words.inputLang">Input language:</span>
       <label class="pill"><input type="radio" name="addSourceLang" value="uk" checked> <span data-i18n="lang.uk">Ukrainian</span></label>
@@ -1347,7 +1356,7 @@
       <label class="setting-label"><span data-i18n="settings.promptLang">Prompt language</span>
         <span class="muted" data-i18n="settings.promptLangHint">Words you'll be shown when a session starts</span>
       </label>
-      <div class="row" style="gap: 6px;">
+      <div class="row" role="group" data-i18n-aria-label="settings.promptLang" aria-label="Prompt language" style="gap: 6px;">
         <label class="pill"><input type="radio" name="source" value="uk"> <span data-i18n="lang.uk">Ukrainian</span></label>
         <label class="pill"><input type="radio" name="source" value="ru"> <span data-i18n="lang.ru">Russian</span></label>
         <label class="pill"><input type="radio" name="source" value="en"> <span data-i18n="lang.en">English</span></label>
@@ -1358,7 +1367,7 @@
       <label class="setting-label"><span data-i18n="settings.answerLang">Answer language</span>
         <span class="muted" data-i18n="settings.answerLangHint">What you'll be asked to produce</span>
       </label>
-      <div class="row" style="gap: 6px;">
+      <div class="row" role="group" data-i18n-aria-label="settings.answerLang" aria-label="Answer language" style="gap: 6px;">
         <label class="pill"><input type="radio" name="lang" value="uk"> <span data-i18n="lang.uk">Ukrainian</span></label>
         <label class="pill"><input type="radio" name="lang" value="ru"> <span data-i18n="lang.ru">Russian</span></label>
         <label class="pill"><input type="radio" name="lang" value="en"> <span data-i18n="lang.en">English</span></label>
@@ -1366,7 +1375,7 @@
       </div>
     </div>
     <div class="setting">
-      <label class="setting-label"><span data-i18n="settings.numChoices">Choices per question</span>
+      <label class="setting-label" for="setNumChoices"><span data-i18n="settings.numChoices">Choices per question</span>
         <span class="muted" data-i18n="settings.numChoicesHint">2–6 buttons in multiple-choice mode</span>
       </label>
       <input type="number" id="setNumChoices" min="2" max="6" step="1" />
@@ -1378,7 +1387,7 @@
       <label class="pill"><input type="checkbox" id="setAudioEnabled"> <span data-i18n="settings.audioEnable">Audio on</span></label>
     </div>
     <div class="setting">
-      <label class="setting-label"><span data-i18n="settings.audioRate">Speech rate</span>
+      <label class="setting-label" for="setAudioRate"><span data-i18n="settings.audioRate">Speech rate</span>
         <span class="muted" id="setAudioRateLabel">1.00×</span>
       </label>
       <input type="range" id="setAudioRate" min="0.5" max="1.5" step="0.05" />
@@ -1389,10 +1398,10 @@
   <section>
     <h2 data-i18n="settings.translation">Translation</h2>
     <div class="setting">
-      <label class="setting-label"><span data-i18n="settings.provider">Default provider</span>
+      <label class="setting-label" for="setProvider"><span data-i18n="settings.provider">Default provider</span>
         <span class="muted" data-i18n="settings.providerHint">Built-in dictionary first, then this provider, then the other if the result looks empty, identical, or the wrong script</span>
       </label>
-      <select id="setProvider">
+      <select id="setProvider" data-i18n-aria-label="settings.provider" aria-label="Default provider">
         <option value="google">Google</option>
         <option value="mymemory">MyMemory</option>
         <option value="server" data-i18n="settings.providerServer">App server</option>
@@ -1400,7 +1409,7 @@
       <span id="providerStatus" class="muted" style="flex-basis: 100%; font-size: 12px;"></span>
     </div>
     <div class="setting">
-      <label class="setting-label"><span data-i18n="settings.serverUrl">Translation server</span>
+      <label class="setting-label" for="setServerUrl"><span data-i18n="settings.serverUrl">Translation server</span>
         <span class="muted" data-i18n="settings.serverUrlHint">Leave empty when the app is served by its own server; set the URL of a remote server (for example https://your-app.fly.dev) to keep the app local and translate remotely</span>
       </label>
       <input type="url" id="setServerUrl" inputmode="url" placeholder="https://…" autocomplete="off" style="min-width: 260px; flex: 1;" />
@@ -1647,7 +1656,7 @@
     <div class="ask" id="ask"></div>
     <div class="choices" id="choices"></div>
     <div id="typeBox" class="hidden">
-      <input type="text" id="typeInput" data-i18n-placeholder="session.typePh" placeholder="Type the answer and press Enter" autocomplete="off" autocapitalize="off" />
+      <input type="text" id="typeInput" data-i18n-placeholder="session.typePh" data-i18n-aria-label="session.answerLabel" placeholder="Type the answer and press Enter" aria-label="Answer" autocomplete="off" autocapitalize="off" />
       <div id="typeFeedback" class="ask" style="margin-top: 10px;"></div>
     </div>
     <div class="row" id="continueRow" style="margin-top: 14px; display: none;">
@@ -1657,7 +1666,7 @@
 </section>
 
 <section id="resultsSection" class="hidden">
-  <h2 data-i18n="results.heading">Results</h2>
+  <h2 id="resultsHeading" tabindex="-1" data-i18n="results.heading">Results</h2>
   <p id="score" class="muted"></p>
   <table id="resultsTable">
     <thead><tr><th data-i18n="results.col.prompt">Prompt</th><th data-i18n="results.col.asked">Asked</th><th data-i18n="results.col.yourAnswer">Your answer</th><th data-i18n="results.col.correct">Correct</th><th data-i18n="results.col.result">Result</th></tr></thead>
@@ -1670,7 +1679,7 @@
   </div>
 </section>
 
-<dialog id="appNoticeModal" class="app-modal app-modal-sm">
+<dialog id="appNoticeModal" class="app-modal app-modal-sm" aria-labelledby="appNoticeTitle" aria-describedby="appNoticeMsg">
   <h3 id="appNoticeTitle">Notice</h3>
   <p id="appNoticeMsg" style="margin: 0 0 8px; white-space: pre-wrap;"></p>
   <input type="text" id="appNoticeInput" class="deck-pick-search" style="display:none; margin: 4px 0 0;" autocomplete="off" />
@@ -1681,8 +1690,8 @@
   </div>
 </dialog>
 
-<dialog id="shortcutsModal" class="app-modal app-modal-sm">
-  <h3 data-i18n="sc.heading">Keyboard shortcuts</h3>
+<dialog id="shortcutsModal" class="app-modal app-modal-sm" aria-labelledby="shortcutsTitle">
+  <h3 id="shortcutsTitle" data-i18n="sc.heading">Keyboard shortcuts</h3>
   <table class="shortcut-table" style="width: 100%;">
     <tr><td><kbd>?</kbd></td><td data-i18n="sc.row.help">Show this list</td></tr>
     <tr><td><kbd>1</kbd> – <kbd>6</kbd></td><td data-i18n="sc.row.choice">Pick a multiple-choice answer</td></tr>
@@ -1707,6 +1716,8 @@
 
 <script>
 const STORAGE_KEY = 'ukr-cards-v3';
+// Kept outside the state so a save can check for a newer writer without parsing the whole pool.
+const REV_KEY = 'ukr-cards-v3-rev';
 
 function showBusy(msg) {
   const o = document.getElementById('busyOverlay');
@@ -1786,7 +1797,8 @@ const STRINGS = {
     'decks.pickSource': 'Pick at least one source deck first.',
     // Session / results
     'session.heading': 'Session', 'session.cancel': 'Cancel', 'session.continue': 'Continue (Space)',
-    'session.typePh': 'Type the answer and press Enter',
+    'session.typePh': 'Type the answer and press Enter', 'session.answerLabel': 'Answer',
+    'session.ask': 'Translate to {lang}', 'session.correct': 'Correct', 'session.incorrect': 'Incorrect. Correct answer: {answer}.',
     'results.heading': 'Results', 'results.back': '← Back to decks', 'results.copyCsv': 'Copy as CSV',
     'results.col.prompt': 'Prompt', 'results.col.asked': 'Asked', 'results.col.yourAnswer': 'Your answer',
     'results.col.correct': 'Correct', 'results.col.result': 'Result',
@@ -1874,7 +1886,8 @@ const STRINGS = {
     'decks.reservedName': '«default» зарезервовано.', 'decks.duplicateName': 'Колода «{name}» вже існує.',
     'decks.pickSource': 'Спершу виберіть хоча б одну колоду-джерело.',
     'session.heading': 'Сесія', 'session.cancel': 'Скасувати', 'session.continue': 'Далі (пробіл)',
-    'session.typePh': 'Введіть відповідь і натисніть Enter',
+    'session.typePh': 'Введіть відповідь і натисніть Enter', 'session.answerLabel': 'Відповідь',
+    'session.ask': 'Перекладіть на {lang}', 'session.correct': 'Правильно', 'session.incorrect': 'Неправильно. Правильна відповідь: {answer}.',
     'results.heading': 'Результати', 'results.back': '← До колод', 'results.copyCsv': 'Копіювати як CSV',
     'results.col.prompt': 'Запит', 'results.col.asked': 'Запитано', 'results.col.yourAnswer': 'Ваша відповідь',
     'results.col.correct': 'Правильно', 'results.col.result': 'Підсумок',
@@ -1958,7 +1971,8 @@ const STRINGS = {
     'decks.reservedName': '«default» зарезервировано.', 'decks.duplicateName': 'Колода «{name}» уже существует.',
     'decks.pickSource': 'Сначала выберите хотя бы одну колоду-источник.',
     'session.heading': 'Сессия', 'session.cancel': 'Отмена', 'session.continue': 'Далее (пробел)',
-    'session.typePh': 'Введите ответ и нажмите Enter',
+    'session.typePh': 'Введите ответ и нажмите Enter', 'session.answerLabel': 'Ответ',
+    'session.ask': 'Переведите на {lang}', 'session.correct': 'Правильно', 'session.incorrect': 'Неправильно. Правильный ответ: {answer}.',
     'results.heading': 'Результаты', 'results.back': '← К колодам', 'results.copyCsv': 'Копировать как CSV',
     'results.col.prompt': 'Запрос', 'results.col.asked': 'Спрошено', 'results.col.yourAnswer': 'Ваш ответ',
     'results.col.correct': 'Правильно', 'results.col.result': 'Итог',
@@ -2422,6 +2436,7 @@ function applyI18n() {
 // Deck `uk` arrays store IDs (named `uk` for backward compat with v3 storage).
 // The "default" deck is reserved: it always contains every word in the pool, cannot be renamed or deleted.
 let state = loadState();
+let _savedRev = state.rev || Number(localStorage.getItem(REV_KEY)) || 0;
 let session = null;
 
 const pool = () => Object.values(state.cards);
@@ -2429,6 +2444,7 @@ const CAT_DECK_PREFIX = 'cat:';
 const isCategoryDeck = (name) => typeof name === 'string' && name.startsWith(CAT_DECK_PREFIX);
 const categoryFromDeck = (name) => isCategoryDeck(name) ? name.slice(CAT_DECK_PREFIX.length) : null;
 const isReadonlyDeck = (name) => name === 'default' || isCategoryDeck(name);
+const isReservedDeckName = (name) => name === 'default' || (typeof name === 'string' && name.startsWith(CAT_DECK_PREFIX));
 const deckOf = (name) => {
   if (isCategoryDeck(name)) {
     const cat = categoryFromDeck(name);
@@ -2525,6 +2541,152 @@ const allCategories = () => {
   return [...set].sort();
 };
 
+// A deck name is a plain object key. Internal prefixes and Object.prototype names must not be
+// usable as deck names, or a deck disappears behind a category lookup or mutates the prototype.
+function safeDeckName(name) {
+  const n = String(name);
+  if (n === '__proto__' || n === 'prototype' || n === 'constructor' || n.startsWith('cat:')) return `deck:${n}`;
+  return n;
+}
+
+// An active deck name is valid when it names an existing deck or a category that still has cards.
+// A stale or missing name must fall back rather than leave the app with an empty active deck.
+function activeDeckIsValid(cards, decks, active) {
+  if (typeof active !== 'string' || !active) return false;
+  if (Object.prototype.hasOwnProperty.call(decks, active)) return true;
+  if (!active.startsWith('cat:')) return false;
+  const category = active.slice(4);
+  return Object.values(cards).some(c => (c.categories || []).includes(category));
+}
+
+// `norm` is the card identity, so two different source words can land on one id when their
+// Ukrainian translations match. Keep both as homonyms (the bundle already uses ids like
+// "лист#leaf") instead of letting the later add overwrite the earlier card and its history.
+function pickCardId(cards, card, source, word) {
+  const base = card.id || norm(card.uk) || norm(word);
+  const existing = cards[base];
+  if (!existing) return base;
+  if (norm(existing[source]) === norm(word)) return base;
+  const seed = `${base}#${norm(word) || 'entry'}`;
+  let id = seed;
+  let n = 2;
+  while (cards[id]) {
+    if (norm(cards[id][source]) === norm(word)) return id;
+    id = `${seed} ${n++}`;
+  }
+  return id;
+}
+
+// Ukrainian is the canonical side and the card id. A card without it cannot be studied or edited,
+// and the v3 loader drops it on the next visit, so it must not be stored in the first place.
+function shouldStoreCard(card, source) {
+  return source === 'uk' || Boolean(trimText(card.uk));
+}
+
+// Tombstones name one exact id. A homonym has its own id and must not be blocked by it.
+function blockedByTombstone(card, deletedIds) {
+  return Array.isArray(deletedIds) && deletedIds.includes(norm(card.id));
+}
+
+// A loader must not overwrite a card because two entries normalize to the same id. Reuse an
+// identical card repeated across decks; give a genuinely different display form a suffixed id.
+function sameCard(a, b) {
+  // Compare display text, not normalized ids: "можна" and "Можна?" are different cards.
+  return ['uk', 'ru', 'en', 'fi'].every(lang => trimText(a[lang]) === trimText(b[lang]));
+}
+// Re-adding a deleted word should reuse its id, but a different display form (a sentence with
+// punctuation) must not consume the plain word's tombstoned id and confuse a later bundle sync.
+function pickNewCardId(cards, card, source, word, isDeleted) {
+  let id = pickCardId(cards, card, source, word);
+  if (!cards[id] && isDeleted(id) && trimText(card.uk).toLowerCase() !== norm(card.uk)) {
+    let n = 2;
+    let candidate = `${id}#${n++}`;
+    while (cards[candidate]) candidate = `${id}#${n++}`;
+    id = candidate;
+  }
+  return id;
+}
+
+function addCardUnique(cards, card) {
+  const base = card.id;
+  if (!cards[base] || sameCard(cards[base], card)) {
+    card.id = base;
+    cards[base] = cards[base] || card;
+    return base;
+  }
+  let id = `${base}#2`;
+  let n = 3;
+  while (cards[id]) {
+    if (sameCard(cards[id], card)) return id;
+    id = `${base}#${n++}`;
+  }
+  card.id = id;
+  cards[id] = card;
+  return id;
+}
+
+// Merging an import keeps the local copy of a card (progress included) and unions deck membership.
+function mergeImport(target, importedCards, importedDecks) {
+  for (const [id, card] of Object.entries(importedCards)) {
+    target.cards[id] = target.cards[id] || card;
+  }
+  for (const [name, deck] of Object.entries(importedDecks)) {
+    const existing = target.decks[name] ? new Set(target.decks[name].uk) : new Set();
+    const merged = target.decks[name] ? target.decks[name].uk.slice() : [];
+    for (const id of deck.uk) {
+      if (!existing.has(id)) { merged.push(id); existing.add(id); }
+    }
+    target.decks[name] = { uk: merged };
+  }
+  return target;
+}
+
+// The pre-homonym bundle collapsed entries whose display forms differ only by case or edge
+// punctuation, and its last write won. Existing states therefore hold that last entry under the
+// plain id. Move it to its new rekeyed id so the plain word can sync in beside it.
+const LEGACY_BUNDLE_MOVES = [
+  ['можна', 'Можна.', 'можна#it-is-allowed'],
+  ['не можна', 'Не можна.', 'не можна#not-allowed'],
+  ['нарешті', 'Нарешті...', 'нарешті#finally-phrase'],
+  ['звичайно', 'Звичайно!', 'звичайно#of-course'],
+  ['правда', 'Правда?', 'правда#really'],
+  ['тиша', 'тиша!', 'тиша#silence-shout'],
+  ['це правда', 'Це правда?', 'це правда#is-it-true'],
+  ['не може бути', 'Не може бути!', 'не може бути#cant-be'],
+];
+
+function migrateBundleHomonyms(s) {
+  let moved = 0;
+  for (const [oldId, oldDisplay, newId] of LEGACY_BUNDLE_MOVES) {
+    const card = s.cards[oldId];
+    if (!card || trimText(card.uk) !== oldDisplay) continue;
+    const existing = s.cards[newId];
+    if (existing) {
+      // The user already synced the rekeyed bundle, so both copies exist. Keep one and carry the
+      // old progress across when the rekeyed card has none.
+      if (!cardIsStudied(existing) && cardIsStudied(card)) {
+        existing.streak = card.streak;
+        existing.nextDue = card.nextDue;
+        existing.lastSeen = card.lastSeen;
+        existing.rightCount = card.rightCount;
+        existing.wrongCount = card.wrongCount;
+      }
+      for (const lang of ['uk', 'ru', 'en', 'fi']) {
+        if (!trimText(existing[lang]) && trimText(card[lang])) existing[lang] = card[lang];
+      }
+    } else {
+      card.id = newId;
+      s.cards[newId] = card;
+    }
+    delete s.cards[oldId];
+    for (const deck of Object.values(s.decks)) {
+      deck.uk = [...new Set(deck.uk.map(id => id === oldId ? newId : id))];
+    }
+    moved++;
+  }
+  return moved;
+}
+
 function normalizeSettings(s) {
   const o = Object.assign({}, DEFAULT_SETTINGS, s || {});
   o.defaultSource = ['uk','ru','en','fi'].includes(o.defaultSource) ? o.defaultSource : 'uk';
@@ -2535,7 +2697,7 @@ function normalizeSettings(s) {
     o.defaultAnswer = ['en','uk','ru','fi'].find(l => l !== o.defaultSource);
   }
   o.numChoices = Math.min(6, Math.max(2, Number.isFinite(o.numChoices) ? o.numChoices : 4));
-  o.audioEnabled = !!o.audioEnabled;
+  o.audioEnabled = o.audioEnabled !== false && o.audioEnabled !== 'false' && !!o.audioEnabled;
   o.audioRate = Math.min(2, Math.max(0.5, Number.isFinite(o.audioRate) ? o.audioRate : 0.95));
   o.defaultProvider = ['mymemory', 'server'].includes(o.defaultProvider) ? o.defaultProvider : 'google';
   o.serverUrl = typeof o.serverUrl === 'string' ? o.serverUrl.trim().replace(/\/+$/, '') : '';
@@ -2551,26 +2713,28 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.cards && parsed.decks && parsed.active) {
+      if (parsed && parsed.cards && parsed.decks) {
         const cards = {};
         for (const [key, c] of Object.entries(parsed.cards)) {
           // Preserve the map key as the card's id so homonyms (same uk, distinct keys) survive.
           const n = normalizeCard({ id: key, ...c });
-          if (n.id && n.uk) cards[n.id] = n;
+          if (n.id && n.uk) addCardUnique(cards, n);
         }
         const decks = {};
         for (const [name, d] of Object.entries(parsed.decks)) {
           const list = Array.isArray(d) ? d : (d.uk || []);
-          decks[name] = { uk: [...new Set(list.map(norm).filter(id => cards[id]))] };
+          decks[safeDeckName(name)] = { uk: [...new Set(list.map(norm).filter(id => cards[id]))] };
         }
-        const activeIsValid = decks[parsed.active] || (typeof parsed.active === 'string' && parsed.active.startsWith('cat:'));
-        if (!activeIsValid) parsed.active = Object.keys(decks)[0] || 'default';
         if (!Object.keys(decks).length) decks.default = { uk: [] };
+        const active = activeDeckIsValid(cards, decks, parsed.active)
+          ? parsed.active
+          : (Object.keys(decks)[0] || 'default');
         return {
-          cards, decks, active: parsed.active,
+          cards, decks, active,
           settings: normalizeSettings(parsed.settings),
           deletedIds: normalizeDeletedIds(parsed.deletedIds),
           bootstrapped: parsed.bootstrapped === true || Object.keys(cards).length > 0,
+          rev: Number.isFinite(parsed.rev) ? parsed.rev : 0,
         };
       }
     }
@@ -2587,13 +2751,12 @@ function loadState() {
           const idList = [];
           for (const c of arr) {
             const n = normalizeCard(c);
-            if (!n.id) continue;
-            if (!cards[n.id]) cards[n.id] = n;
-            idList.push(n.id);
+            if (!n.id || !n.uk) continue;
+            idList.push(addCardUnique(cards, n));
           }
-          decks[name] = { uk: [...new Set(idList)] };
+          decks[safeDeckName(name)] = { uk: [...new Set(idList)] };
         }
-        return { cards, decks, active: decks[old.active] ? old.active : Object.keys(decks)[0] || 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: true };
+        return { cards, decks, active: decks[old.active] ? old.active : Object.keys(decks)[0] || 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: true, rev: 0 };
       }
     }
   } catch {}
@@ -2602,11 +2765,11 @@ function loadState() {
     const old = JSON.parse(localStorage.getItem('ukr-cards-v1'));
     if (Array.isArray(old)) {
       const cards = {};
-      for (const c of old) { const n = normalizeCard(c); if (n.id) cards[n.id] = n; }
-      return { cards, decks: { default: { uk: Object.keys(cards) } }, active: 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: true };
+      for (const c of old) { const n = normalizeCard(c); if (n.id && n.uk) addCardUnique(cards, n); }
+      return { cards, decks: { default: { uk: Object.keys(cards) } }, active: 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: true, rev: 0 };
     }
   } catch {}
-  return { cards: {}, decks: { default: { uk: [] } }, active: 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: false };
+  return { cards: {}, decks: { default: { uk: [] } }, active: 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: false, rev: 0 };
 }
 
 function syncDefaultDeck() {
@@ -2615,11 +2778,26 @@ function syncDefaultDeck() {
 }
 
 let _quotaWarned = false;
+let _otherTabWarned = false;
 function saveState({ quiet = false } = {}) {
   syncDefaultDeck();
   if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
   try {
+    // Another tab may have written a newer state (an import or reset). Last-writer-wins would
+    // silently delete that work, so refuse to overwrite it and ask the user to reload.
+    const storedRev = Number(localStorage.getItem(REV_KEY)) || 0;
+    if (storedRev > _savedRev) {
+      if (!quiet && !_otherTabWarned) {
+        _otherTabWarned = true;
+        notify('Another tab changed your cards. Reload this tab before making changes, or new changes here will not be saved.');
+      }
+      return;
+    }
+    state.rev = Math.max(Date.now(), _savedRev + 1);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // Written after the state so a failed (quota) write does not claim a revision.
+    localStorage.setItem(REV_KEY, String(state.rev));
+    _savedRev = state.rev;
   } catch (err) {
     const quota = err && (err.name === 'QuotaExceededError' || err.code === 22 || err.code === 1014);
     console.warn('saveState failed:', err);
@@ -2657,6 +2835,8 @@ function appNotice({ message, title = 'Notice', okLabel = 'OK', cancelLabel = nu
     extraBtn.style.display = extraLabel ? '' : 'none';
     inputEl.style.display = input ? '' : 'none';
     inputEl.value = defaultValue || '';
+    inputEl.setAttribute('aria-label', title);
+    inputEl.setAttribute('aria-describedby', 'appNoticeMsg');
     let settled = false;
     const finish = (val) => {
       if (settled) return; settled = true;
@@ -2885,6 +3065,8 @@ function buildDeckItem(deckName, displayName, count) {
   row.className = 'deck-picker-item';
   if (deckName === state.active) row.classList.add('active');
   row.setAttribute('role', 'option');
+  row.setAttribute('aria-selected', deckName === state.active ? 'true' : 'false');
+  row.tabIndex = -1;
   row.dataset.deck = deckName;
   row.innerHTML = `<span class="deck-picker-item-icon"></span><span class="deck-picker-item-name"></span><span class="deck-picker-stats"></span><span class="deck-picker-count"></span>`;
   row.children[0].innerHTML = deckIconHtml(deckName);
@@ -2896,10 +3078,33 @@ function buildDeckItem(deckName, displayName, count) {
   row.children[2].textContent = stats.join(' · ');
   row.children[3].textContent = count;
   row.addEventListener('click', () => {
-    closeDeckMenu();
+    closeDeckMenu(true);
     switchDeck(deckName);
   });
+  row.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDeckMenu(true); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      moveDeckMenuFocus(e.key);
+    }
+  });
   return row;
+}
+
+function deckMenuItems() {
+  const box = $('deckPickerItems');
+  return box ? [...box.querySelectorAll('.deck-picker-item')] : [];
+}
+function moveDeckMenuFocus(key) {
+  const items = deckMenuItems();
+  if (!items.length) return;
+  const current = items.indexOf(document.activeElement);
+  let next = 0;
+  if (key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % items.length;
+  else if (key === 'ArrowUp') next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
+  else if (key === 'End') next = items.length - 1;
+  items[next].focus();
 }
 
 let _deckMenuOpenedAt = 0;
@@ -2926,10 +3131,11 @@ function openDeckMenu() {
     if (!_isTouch) setTimeout(() => sb.focus(), 30);
   }
 }
-function closeDeckMenu() {
+function closeDeckMenu(restoreFocus = false) {
   const menu = $('deckPickerMenu');
   menu.hidden = true;
   $('deckPickerBtn').setAttribute('aria-expanded', 'false');
+  if (restoreFocus) $('deckPickerBtn').focus();
 }
 
 // ---- Translation providers ----
@@ -2990,8 +3196,22 @@ function applyLexiconToPool() {
   return n;
 }
 
+const NET_TIMEOUT_MS = 15000;
+async function fetchWithTimeout(url, options = {}, ms = NET_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw new Error('request timed out');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function loadLexicon() {
-  const res = await fetch('./lexicon.json');
+  const res = await fetchWithTimeout('./lexicon.json');
   if (!res.ok) throw new Error(`lexicon HTTP ${res.status}`);
   const data = await res.json();
   const entries = Array.isArray(data) ? data : Object.values(data);
@@ -3054,7 +3274,7 @@ async function translate(text, target, source = 'uk') {
 // MyMemory: free tier ~5000 chars/day per IP without email; one short word per request.
 async function translateMyMemory(text, target, source = 'uk') {
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.responseStatus !== 200 && data.responseStatus !== '200') {
@@ -3067,7 +3287,7 @@ async function translateMyMemory(text, target, source = 'uk') {
 // May rate-limit your IP — translate() falls back to MyMemory if it fails or looks untranslated.
 async function translateGoogle(text, target, source = 'uk') {
   const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   // Shape: [[[translated, original, ...], ...], src_lang, ...]
@@ -3086,11 +3306,11 @@ const translationServerUrl = () => {
 };
 
 async function translateServer(text, target, source = 'uk') {
-  const res = await fetch(`${translationServerUrl()}/api/translate`, {
+  const res = await fetchWithTimeout(`${translationServerUrl()}/api/translate`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ q: text, source, target }),
-  });
+  }, 20000);
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
     throw new Error(`server ${res.status}${detail && detail.error ? `: ${detail.error}` : ''}`);
@@ -3103,7 +3323,7 @@ async function translateServer(text, target, source = 'uk') {
 // Feature-detects the proxy so the Settings screen can say whether it is there.
 async function serverHealth() {
   try {
-    const res = await fetch(`${translationServerUrl()}/api/health`, { headers: { accept: 'application/json' } });
+    const res = await fetchWithTimeout(`${translationServerUrl()}/api/health`, { headers: { accept: 'application/json' } }, 5000);
     if (!res.ok) return null;
     const data = await res.json();
     return data && data.ok ? data : null;
@@ -3127,8 +3347,18 @@ function splitAddInput(raw) {
   const text = String(raw || '').trim();
   if (!text) return [];
   // Newlines mean "one entry per line", including phrases with commas.
-  // A single-line paste can still be a comma/slash-separated word list.
-  const parts = /[\n\r]/.test(text) ? text.split(/\r?\n/) : text.split(/[=,/]/);
+  // A single-line paste can still be a comma/slash-separated word list. Slash is only a separator
+  // when every piece is a word of its own, so "24/7" stays one entry; "=" is never a separator.
+  let parts;
+  if (/[\n\r]/.test(text)) {
+    parts = text.split(/\r?\n/);
+  } else {
+    parts = text.split(',');
+    if (parts.length === 1 && text.includes('/')) {
+      const slashParts = text.split('/').map(p => trimText(p)).filter(Boolean);
+      if (slashParts.length > 1 && slashParts.every(p => p.length > 1)) parts = slashParts;
+    }
+  }
   const seen = new Set();
   const out = [];
   for (const part of parts) {
@@ -3165,6 +3395,7 @@ $('addBtn').addEventListener('click', async () => {
   }
 
   // Each Add cards click goes into its own auto-named deck.
+  const previousActive = state.active;
   const deckName = makeAutoDeckName();
   state.decks[deckName] = { uk: [...new Set(existingIds)] };
   state.active = deckName;
@@ -3178,41 +3409,70 @@ $('addBtn').addEventListener('click', async () => {
   $('addBtn').disabled = true;
   $('addStatus').innerHTML = '';
   showBusy(`Translating 0/${fresh.length}…`);
+  const failures = [];
   let done = 0;
-  const targetsAll = ['uk','ru','en','fi'].filter(l => l !== source);
-  for (const word of fresh) {
-    $('addStatus').textContent = `translating ${++done}/${fresh.length}: ${word}…`;
-    document.getElementById('busyMessage').textContent = `Translating ${done}/${fresh.length}: ${word}…`;
-    const tl = state.settings.targetLangs;
-    // UK is the canonical id language, so always translate to it even if the user has toggled tl.uk off (which doesn't exist anyway).
-    const targets = targetsAll.filter(l => l === 'uk' || tl[l]);
-    const results = await Promise.allSettled(targets.map(l => translate(word, l, source)));
-    const pick = (i) => results[i].status === 'fulfilled' ? results[i].value : '';
-    const card = { [source]: word, addedAt: Date.now() };
-    targets.forEach((l, i) => { card[l] = pick(i); });
-    // id defaults to uk (canonical); fall back to source word if uk translation failed.
-    card.id = card.uk || word;
-    const newCard = normalizeCard(card);
-    state.cards[newCard.id] = newCard;
-    forgetDeleted(newCard.id);
-    forgetDeleted(newCard.uk);
-    if (!state.decks[deckName].uk.includes(newCard.id)) state.decks[deckName].uk.push(newCard.id);
-    saveStateSoon();
-    renderAll();
-    const failed = targets
-      .map((l, i) => [l, results[i]])
-      .filter(([, r]) => r.status === 'rejected');
-    if (failed.length) {
-      const span = document.createElement('span');
-      span.className = 'err';
-      span.textContent = ` (${word}: ${failed.map(([l, r]) => `${l} — ${r.reason.message}`).join('; ')})`;
-      $('addStatus').appendChild(span);
+  let added = 0;
+  try {
+    const targetsAll = ['uk','ru','en','fi'].filter(l => l !== source);
+    for (const word of fresh) {
+      $('addStatus').textContent = `translating ${++done}/${fresh.length}: ${word}…`;
+      document.getElementById('busyMessage').textContent = `Translating ${done}/${fresh.length}: ${word}…`;
+      const tl = state.settings.targetLangs;
+      // UK is the canonical id language, so always translate to it even if the user has toggled tl.uk off (which doesn't exist anyway).
+      const targets = targetsAll.filter(l => l === 'uk' || tl[l]);
+      const results = await Promise.allSettled(targets.map(l => translate(word, l, source)));
+      const pick = (i) => results[i].status === 'fulfilled' ? results[i].value : '';
+      const card = { [source]: word, addedAt: Date.now() };
+      targets.forEach((l, i) => { card[l] = pick(i); });
+      if (!shouldStoreCard(card, source)) {
+        failures.push(`${word} (uk: translation failed, card not added)`);
+        continue;
+      }
+      card.id = card.uk || word;
+      const newCard = normalizeCard(card);
+      const id = pickNewCardId(state.cards, newCard, source, word, isRememberedDeleted);
+      newCard.id = id;
+      const existing = state.cards[id];
+      if (existing) {
+        for (const lang of ['uk', 'ru', 'en', 'fi']) {
+          if (!trimText(existing[lang]) && trimText(newCard[lang])) existing[lang] = newCard[lang];
+        }
+      } else {
+        state.cards[id] = newCard;
+        added++;
+      }
+      // Clear the tombstone for this exact id only: a homonym has its own id and its own tombstone.
+      forgetDeleted(id);
+      if (!state.decks[deckName].uk.includes(id)) state.decks[deckName].uk.push(id);
+      saveStateSoon();
+      renderAll();
+      for (const [lang, result] of targets.map((l, i) => [l, results[i]])) {
+        if (result.status === 'rejected') failures.push(`${word} (${lang}: ${result.reason.message})`);
+      }
     }
+  } catch (err) {
+    $('addStatus').textContent = `add stopped after ${done} word${done === 1 ? '' : 's'}: ${err.message}`;
+    return;
+  } finally {
+    $('addBtn').disabled = false;
+    hideBusy();
   }
-  $('addStatus').textContent = `added ${done} card${done === 1 ? '' : 's'} to "${deckName}". Review translations below — click a cell, ↻ to re-translate.`;
+  if (state.decks[deckName] && state.decks[deckName].uk.length === 0) {
+    delete state.decks[deckName];
+    state.active = previousActive;
+    saveState();
+    renderAll();
+  }
+  $('addStatus').textContent = state.decks[deckName]
+    ? `added ${added} card${added === 1 ? '' : 's'} to "${deckName}". Review translations below — click a cell, ↻ to re-translate.`
+    : 'no cards could be added; nothing was saved.';
+  if (failures.length) {
+    const span = document.createElement('span');
+    span.className = 'err';
+    span.textContent = ` ${failures.length} translation${failures.length === 1 ? '' : 's'} failed: ${failures.join('; ')}`;
+    $('addStatus').appendChild(span);
+  }
   $('wordsInput').value = '';
-  $('addBtn').disabled = false;
-  hideBusy();
   showTab('quiz');
 });
 
@@ -3316,15 +3576,20 @@ function beginCellEdit(el, card, lang) {
   input.focus();
   input.select();
   let done = false;
-  const finish = (commit) => {
+  let cancelled = false;
+  const finish = (commit, restoreFocus = true) => {
     if (done) return;
     done = true;
+    if (!commit) cancelled = true;
     if (commit) {
       card[lang] = trimText(input.value);
       saveState();
     }
     el.textContent = card[lang] || '';
     el.classList.toggle('missing-lang', !card[lang]);
+    // Enter/Escape removes the focused input from the DOM; without this, focus falls to the body
+    // and the keyboard user has to tab in from the top of the page again.
+    if (restoreFocus) el.focus();
   };
   input.addEventListener('keydown', (ev) => {
     ev.stopPropagation();
@@ -3332,7 +3597,18 @@ function beginCellEdit(el, card, lang) {
     else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
   });
   input.addEventListener('click', (ev) => ev.stopPropagation());
-  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('blur', (ev) => {
+    // Tabbing to the re-translate button must not destroy it first.
+    if (ev.relatedTarget && row.contains(ev.relatedTarget)) return;
+    finish(true, false);
+  });
+  btn.addEventListener('blur', (ev) => {
+    if (ev.relatedTarget && row.contains(ev.relatedTarget)) return;
+    finish(true, false);
+  });
+  btn.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); }
+  });
   btn.addEventListener('mousedown', (ev) => ev.preventDefault());
   btn.addEventListener('click', async (ev) => {
     ev.preventDefault();
@@ -3342,8 +3618,17 @@ function beginCellEdit(el, card, lang) {
     if (!src) return;
     btn.disabled = true;
     try {
-      input.value = await translate(src, lang, srcLang);
-      input.focus();
+      const translated = await translate(src, lang, srcLang);
+      if (!done && input.isConnected) {
+        input.value = translated;
+        input.focus();
+      } else if (!cancelled) {
+        // The edit was committed or closed while the request ran. Keep the translation the user
+        // asked for instead of losing it with the detached input.
+        card[lang] = trimText(translated);
+        saveState();
+        renderAll();
+      }
     } catch (err) {
       btn.title = err.message || 'Re-translate failed';
     } finally {
@@ -3533,8 +3818,12 @@ function renderDeckCards() {
         saveState();
         renderAll();
       };
+      const removeFromDeckLongPress = async () => {
+        if (!await askConfirm(`Remove "${c.uk}" from "${state.active}"?`)) return;
+        removeFromDeck();
+      };
       row.children[5].addEventListener('click', removeFromDeck);
-      attachLongPress(row, removeFromDeck);
+      attachLongPress(row, removeFromDeckLongPress);
     }
     list.appendChild(row);
   }
@@ -3693,6 +3982,7 @@ function renderSettings() {
   $('setAudioRateLabel').textContent = `${Number(s.audioRate).toFixed(2)}×`;
   // Translation
   $('setProvider').value = s.defaultProvider;
+  syncEnhancedLabel('setProvider');
   if ($('setServerUrl')) $('setServerUrl').value = s.serverUrl || '';
   $('setLangRu').checked = s.targetLangs.ru;
   $('setLangEn').checked = s.targetLangs.en;
@@ -3739,6 +4029,7 @@ $('poolSort').addEventListener('change', (e) => { poolFilters.sort = e.target.va
 $('poolClearBtn').addEventListener('click', () => {
   poolFilters = { q: '', category: '__all', status: '__all', sort: 'recent' };
   $('poolSearch').value = ''; $('poolCategory').value = '__all'; $('poolStatus').value = '__all'; $('poolSort').value = 'recent';
+  for (const id of ['poolCategory', 'poolStatus', 'poolSort']) syncEnhancedLabel(id);
   renderCaps.pool = RENDER_PAGE_SIZE;
   renderPoolList();
 });
@@ -3749,11 +4040,18 @@ function persistSettings() { saveState(); }
 // Tells the user whether a translation proxy is actually deployed, so picking "App server" on a
 // static host is not a silent no-op (translate() would fall back to Google / MyMemory).
 let _providerStatusSeq = 0;
-async function refreshProviderStatus(provider) {
+let _providerCheckedFor = '';
+let _providerCheckedAt = 0;
+async function refreshProviderStatus(provider, { force = false } = {}) {
   const el = $('providerStatus');
   if (!el) return;
+  if (provider !== 'server') { el.textContent = ''; _providerCheckedFor = ''; _providerCheckedAt = 0; return; }
+  // renderAll runs after every added card, so cache a recent answer instead of probing the
+  // translation server once per render.
+  if (!force && provider === _providerCheckedFor && Date.now() - _providerCheckedAt < 10000) return;
+  _providerCheckedFor = provider;
+  _providerCheckedAt = Date.now();
   const seq = ++_providerStatusSeq;
-  if (provider !== 'server') { el.textContent = ''; return; }
   el.textContent = '…';
   const health = await serverHealth();
   if (seq !== _providerStatusSeq) return; // a newer check already answered
@@ -3803,6 +4101,7 @@ document.querySelectorAll('input[name="provider"]').forEach(r => {
   r.addEventListener('change', (e) => {
     state.settings.defaultProvider = e.target.value;
     if ($('setProvider')) $('setProvider').value = e.target.value;
+    syncEnhancedLabel('setProvider');
     persistSettings();
     refreshProviderStatus(e.target.value);
   });
@@ -3817,7 +4116,7 @@ if ($('setServerUrl')) {
     state.settings.serverUrl = trimText(e.target.value).replace(/\/+$/, '');
     e.target.value = state.settings.serverUrl;
     persistSettings();
-    refreshProviderStatus(state.settings.defaultProvider);
+    refreshProviderStatus(state.settings.defaultProvider, { force: true });
   });
 }
 
@@ -3837,7 +4136,7 @@ function applyBundleData(data) {
   for (const [key, c] of Object.entries(data.cards)) {
     const n = normalizeCard({ id: key, ...c });
     if (!n.id || !n.uk) continue;
-    if (isRememberedDeleted(n.id) || isRememberedDeleted(n.uk)) continue;
+    if (blockedByTombstone(n, state.deletedIds)) continue;
     if (state.cards[n.id]) {
       const ex = state.cards[n.id];
       for (const lang of ['uk', 'ru', 'en', 'fi']) {
@@ -3853,7 +4152,8 @@ function applyBundleData(data) {
   const def = state.decks.default || (state.decks.default = { uk: [] });
   const inDef = new Set(def.uk);
   const bundleDefault = (data.decks && data.decks.default && (Array.isArray(data.decks.default) ? data.decks.default : data.decks.default.uk)) || [];
-  for (const id of bundleDefault) {
+  for (const rawId of bundleDefault) {
+    const id = norm(rawId);
     if (state.cards[id] && !inDef.has(id)) { def.uk.push(id); inDef.add(id); addedToDeck++; }
   }
   state.bootstrapped = true;
@@ -3862,7 +4162,7 @@ function applyBundleData(data) {
   return { addedCards, addedToDeck };
 }
 async function loadBundledData() {
-  const res = await fetch('./ukr-cards-categorized.json');
+  const res = await fetchWithTimeout('./ukr-cards-categorized.json', {}, 30000);
   if (!res.ok) throw new Error(`bundle HTTP ${res.status}`);
   const data = await res.json();
   if (!data || !data.cards) throw new Error('Unexpected JSON shape');
@@ -3884,9 +4184,12 @@ $('setResetBtn').addEventListener('click', async () => {
   if (!await askConfirm('Reset everything?\nThis wipes all words, decks, settings, and learning history. There is no undo.')) return;
   if (!await askConfirm('Are you sure? This cannot be undone.')) return;
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(REV_KEY);
   localStorage.removeItem('ukr-cards-v2');
   localStorage.removeItem('ukr-cards-v1');
-  state = { cards: {}, decks: { default: { uk: [] } }, active: 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: true };
+  state = { cards: {}, decks: { default: { uk: [] } }, active: 'default', settings: normalizeSettings(), deletedIds: [], bootstrapped: true, rev: 0 };
+  _savedRev = 0;
+  _otherTabWarned = false;
   saveState(); renderAll(); syncLangPickers();
 });
 
@@ -3913,23 +4216,31 @@ $('backfillBtn').addEventListener('click', async () => {
   $('backfillBtn').disabled = true;
   $('addBtn').disabled = true;
   let done = 0;
-  for (const { card, lang } of missing) {
-    $('addStatus').textContent = `filling ${++done}/${missing.length}: ${card.uk} (${lang})…`;
-    try {
-      const t = await translate(card.uk, lang);
-      card[lang] = t;
-      saveState();
-      renderAll();
-    } catch (e) {
-      const span = document.createElement('span');
-      span.className = 'err';
-      span.textContent = ` (failed: ${card.uk}/${lang} — ${e.message})`;
-      $('addStatus').appendChild(span);
+  const failures = [];
+  try {
+    for (const { card, lang } of missing) {
+      $('addStatus').textContent = `filling ${done + failures.length + 1}/${missing.length}: ${card.uk || card.id} (${lang})…`;
+      if (!trimText(card.uk)) { failures.push(`${card.id}/${lang} — no Ukrainian text`); continue; }
+      try {
+        card[lang] = await translate(card.uk, lang);
+        done++;
+        saveState();
+        renderAll();
+      } catch (e) {
+        failures.push(`${card.uk}/${lang} — ${e.message}`);
+      }
     }
+  } finally {
+    $('backfillBtn').disabled = false;
+    $('addBtn').disabled = false;
   }
   $('addStatus').textContent = `backfilled ${done} translation${done === 1 ? '' : 's'}.`;
-  $('backfillBtn').disabled = false;
-  $('addBtn').disabled = false;
+  if (failures.length) {
+    const span = document.createElement('span');
+    span.className = 'err';
+    span.textContent = ` ${failures.length} failed: ${failures.join('; ')}`;
+    $('addStatus').appendChild(span);
+  }
 });
 
 $('exportBtn').addEventListener('click', () => {
@@ -3961,13 +4272,16 @@ $('importFile').addEventListener('change', async (e) => {
       // v3
       for (const [key, c] of Object.entries(data.cards)) {
         const n = normalizeCard({ id: key, ...c });
-        if (n.id && n.uk) importedCards[n.id] = n;
+        if (n.id && n.uk) addCardUnique(importedCards, n);
       }
       importedDecks = {};
       for (const [name, d] of Object.entries(data.decks)) {
         const list = Array.isArray(d) ? d : (d.uk || []);
-        importedDecks[name] = { uk: [...new Set(list.map(norm).filter(id => importedCards[id]))] };
+        importedDecks[safeDeckName(name)] = { uk: [...new Set(list.map(norm).filter(id => importedCards[id]))] };
       }
+      // A file may carry cards with an empty decks object; without a deck the active name would be
+      // undefined, the next add would throw, and a reload would drop the imported cards entirely.
+      if (!Object.keys(importedDecks).length) importedDecks.default = { uk: Object.keys(importedCards) };
     } else if (data && data.decks) {
       // v2
       importedDecks = {};
@@ -3975,17 +4289,16 @@ $('importFile').addEventListener('change', async (e) => {
         const idList = [];
         for (const c of arr) {
           const n = normalizeCard(c);
-          if (!n.id) continue;
-          if (!importedCards[n.id]) importedCards[n.id] = n;
-          idList.push(n.id);
+          if (!n.id || !n.uk) continue;
+          idList.push(addCardUnique(importedCards, n));
         }
-        importedDecks[name] = { uk: [...new Set(idList)] };
+        importedDecks[safeDeckName(name)] = { uk: [...new Set(idList)] };
       }
     } else if (Array.isArray(data)) {
       // v1
       for (const c of data) {
         const n = normalizeCard(c);
-        if (n.id) importedCards[n.id] = n;
+        if (n.id && n.uk) addCardUnique(importedCards, n);
       }
       importedDecks = { imported: { uk: Object.keys(importedCards) } };
     } else {
@@ -4006,19 +4319,13 @@ $('importFile').addEventListener('change', async (e) => {
       replace = choice === 'extra';
     }
     if (!replace) {
-      for (const [id, c] of Object.entries(importedCards)) {
-        state.cards[id] = state.cards[id] || c;
-        forgetDeleted(id);
-      }
-      for (const [name, d] of Object.entries(importedDecks)) {
-        const existing = state.decks[name] ? new Set(state.decks[name].uk) : new Set();
-        const merged = state.decks[name] ? state.decks[name].uk.slice() : [];
-        for (const id of d.uk) if (!existing.has(id)) { merged.push(id); existing.add(id); }
-        state.decks[name] = { uk: merged };
-      }
+      mergeImport(state, importedCards, importedDecks);
+      for (const id of Object.keys(importedCards)) forgetDeleted(id);
       state.bootstrapped = true;
     } else {
-      const active = importedDecks.default ? 'default' : Object.keys(importedDecks)[0];
+      const active = activeDeckIsValid(importedCards, importedDecks, data.active)
+        ? data.active
+        : (Object.keys(importedDecks)[0] || 'default');
       state = {
         cards: importedCards,
         decks: importedDecks,
@@ -4042,6 +4349,8 @@ $('clearBtn').addEventListener('click', async () => {
   const n = pool().length;
   if (!n) return;
   if (!await askConfirm(`Delete all ${n} words from the pool? Every deck will be emptied too.`)) return;
+  // Clear is a bulk delete: the same sticky rule must keep Sync with bundle from resurrecting them.
+  for (const id of Object.keys(state.cards)) rememberDeleted(id);
   state.cards = {};
   for (const d of Object.values(state.decks)) d.uk = [];
   state.bootstrapped = true;
@@ -4054,8 +4363,34 @@ $('deckPickerBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   if ($('deckPickerMenu').hidden) openDeckMenu(); else closeDeckMenu();
 });
+$('deckPickerBtn').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if ($('deckPickerMenu').hidden) {
+      openDeckMenu();
+      // openDeckMenu focuses the search field on desktop; move after that focus lands.
+      setTimeout(() => moveDeckMenuFocus(e.key), 40);
+    } else {
+      moveDeckMenuFocus(e.key);
+    }
+  } else if (e.key === 'Escape' && !$('deckPickerMenu').hidden) {
+    e.preventDefault();
+    closeDeckMenu(true);
+  }
+});
 $('deckPickerSearch').addEventListener('input', paintDeckPickerItems);
 $('deckPickerSearch').addEventListener('click', (e) => e.stopPropagation());
+$('deckPickerSearch').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveDeckMenuFocus('ArrowDown'); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    const first = deckMenuItems()[0];
+    if (first) first.click();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeDeckMenu(true);
+  }
+});
 
 // Inline rename: click the deck title to edit.
 $('activeDeckName').addEventListener('click', (e) => {
@@ -4080,7 +4415,7 @@ $('activeDeckName').addEventListener('click', (e) => {
     if (!commit) { restore(); return; }
     const newName = input.value.trim();
     if (!newName || newName === oldName) { restore(); return; }
-    if (newName === 'default') { notify('"default" is reserved.'); restore(); return; }
+    if (isReservedDeckName(newName)) { notify('That deck name is reserved.'); restore(); return; }
     if (state.decks[newName]) { notify(`Deck "${newName}" already exists.`); restore(); return; }
     state.decks[newName] = state.decks[oldName];
     delete state.decks[oldName];
@@ -4100,7 +4435,7 @@ document.addEventListener('click', (e) => {
   if (!menu.hidden && !$('deckPicker').contains(e.target) && !menu.contains(e.target)) closeDeckMenu();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('deckPickerMenu').hidden) closeDeckMenu();
+  if (e.key === 'Escape' && !$('deckPickerMenu').hidden) closeDeckMenu(true);
 });
 window.addEventListener('scroll', () => {
   if ($('deckPickerMenu').hidden) return;
@@ -4120,6 +4455,7 @@ window.addEventListener('resize', () => {
 $('newDeckBtn').addEventListener('click', async () => {
   const name = (await askText('New deck name:') || '').trim();
   if (!name) return;
+  if (isReservedDeckName(name)) { notify('That deck name is reserved.'); return; }
   if (state.decks[name]) { notify(`Deck "${name}" already exists.`); return; }
   state.decks[name] = { uk: [] };
   state.active = name;
@@ -4132,7 +4468,7 @@ $('renameDeckBtn').addEventListener('click', async () => {
   if (oldName === 'default') { notify('The default deck cannot be renamed.'); return; }
   const newName = (await askText(`Rename deck "${oldName}" to:`, oldName) || '').trim();
   if (!newName || newName === oldName) return;
-  if (newName === 'default') { notify('"default" is reserved.'); return; }
+  if (isReservedDeckName(newName)) { notify('That deck name is reserved.'); return; }
   if (state.decks[newName]) { notify(`Deck "${newName}" already exists.`); return; }
   state.decks[newName] = state.decks[oldName];
   delete state.decks[oldName];
@@ -4402,7 +4738,8 @@ function showQuestion() {
   const pf = $('progressFill');
   if (pf && session.totalCards > 0) pf.style.width = `${Math.round((answeredCards / session.totalCards) * 100)}%`;
   $('prompt').textContent = it.promptText;
-  $('ask').textContent = `Translate to ${LANG_NAME[it.answerLang]}`;
+  $('ask').textContent = t('session.ask', { lang: t(`lang.${it.answerLang}`) });
+  $('quizLive').textContent = `${it.promptText}. ${$('ask').textContent}.`;
   $('continueRow').style.display = 'none';
   $('typeFeedback').textContent = '';
   if (session.mode === 'type') {
@@ -4431,6 +4768,8 @@ function showQuestion() {
       b.addEventListener('click', () => recordAnswer(choice, b));
       box.appendChild(b);
     });
+    const first = box.querySelector('button.choice');
+    if (first) setTimeout(() => first.focus(), 0);
   }
   speak(it.promptText, it.promptLang);
 }
@@ -4461,8 +4800,8 @@ function recordAnswer(picked, choiceBtn) {
     inp.disabled = true;
     inp.classList.add(isRight ? 'right' : 'wrong');
     $('typeFeedback').innerHTML = isRight
-      ? `<span style="color: var(--good); font-weight: 600;">✓ correct</span>`
-      : `<span style="color: var(--bad); font-weight: 600;">✗ correct: ${escapeHtml(it.answerText)}</span>`;
+      ? `<span style="color: var(--good); font-weight: 600;">✓ ${escapeHtml(t('session.correct'))}</span>`
+      : `<span style="color: var(--bad); font-weight: 600;">✗ ${escapeHtml(t('session.incorrect', { answer: it.answerText }))}</span>`;
   } else {
     for (const b of $('choices').children) {
       b.disabled = true;
@@ -4477,6 +4816,9 @@ function recordAnswer(picked, choiceBtn) {
     session.queue.splice(insertAt, 0, requeued);
   }
   $('continueRow').style.display = 'flex';
+  $('quizLive').textContent = isRight
+    ? t('session.correct')
+    : t('session.incorrect', { answer: it.answerText });
   speak(it.answerText, it.answerLang);
   setTimeout(() => $('continueBtn').focus(), 50);
 }
@@ -4499,7 +4841,14 @@ $('typeInput').addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]')) return;
   if (sessionIsOver()) return;
+  // Escape is documented to cancel the session even while the Type answer field has focus.
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    $('cancelSessionBtn').click();
+    return;
+  }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   // Continue with Space/Enter when feedback is visible.
   if ($('continueRow').style.display !== 'none' && (e.key === ' ' || e.key === 'Enter')) {
@@ -4517,11 +4866,6 @@ document.addEventListener('keydown', (e) => {
   // S to replay the prompt audio.
   if ((e.key === 's' || e.key === 'S') && session.current) {
     speak(session.current.promptText, session.current.promptLang);
-    return;
-  }
-  // Esc to cancel.
-  if (e.key === 'Escape') {
-    $('cancelSessionBtn').click();
   }
 });
 
@@ -4546,6 +4890,8 @@ function finishSession() {
     tr.children[4].textContent = a.right ? '✓' : '✗';
     tbody.appendChild(tr);
   }
+  $('quizLive').textContent = $('score').textContent;
+  $('resultsHeading').focus();
 }
 
 $('copyCsvBtn').addEventListener('click', async () => {
@@ -4568,6 +4914,8 @@ $('newSessionBtn').addEventListener('click', exitSession);
 
 // ---- Tab switching ----
 function showTab(name) {
+  // The session view owns the screen; a swipe or tab click must not surface another tab under it.
+  if (document.body.classList.contains('quiz-active')) return;
   for (const btn of document.querySelectorAll('#tabs .tab')) {
     btn.classList.toggle('active', btn.dataset.tab === name);
   }
@@ -4748,9 +5096,9 @@ function makeManageRow(name, kind /* 'default' | 'user' | 'category' */) {
         if (!save) { input.replaceWith(nameEl); return; }
         const v = input.value.trim();
         if (!v || v === name) { input.replaceWith(nameEl); return; }
-        if (v === 'default' || state.decks[v]) {
+        if (isReservedDeckName(v) || state.decks[v]) {
           input.replaceWith(nameEl);
-          $('manageCount').textContent = v === 'default'
+          $('manageCount').textContent = isReservedDeckName(v)
             ? t('decks.reservedName')
             : t('decks.duplicateName', { name: v });
           setTimeout(() => $('manageCount').textContent = selectedCountText(), 2500);
@@ -4809,6 +5157,10 @@ function makeManageRow(name, kind /* 'default' | 'user' | 'category' */) {
 function refreshManageList() {
   const list = $('manageDecksList');
   if (!list) return;
+  // A rename, import, or reset can remove a deck while its name is still in the selection set.
+  for (const name of [...manageSel]) {
+    if (!Object.prototype.hasOwnProperty.call(state.decks, name)) manageSel.delete(name);
+  }
   list.innerHTML = '';
   const q = ($('manageDecksSearch')?.value || '').trim().toLowerCase();
   const matches = (name, display) => !q || name.toLowerCase().includes(q) || (display || '').toLowerCase().includes(q);
@@ -4993,6 +5345,7 @@ function applyCorpusFixes() {
 }
 
 // Initial render. Sync default deck so it always reflects the full pool.
+migrateBundleHomonyms(state);
 applyCorpusFixes();
 saveState();
 renderAll();
@@ -5028,12 +5381,12 @@ syncLangPickers();
         const importedCards = {};
         for (const [key, c] of Object.entries(data.cards)) {
           const n = normalizeCard({ id: key, ...c });
-          if (n.id && n.uk) importedCards[n.id] = n;
+          if (n.id && n.uk) addCardUnique(importedCards, n);
         }
         const importedDecks = {};
         for (const [name, d] of Object.entries(data.decks || {})) {
           const list = Array.isArray(d) ? d : (d.uk || []);
-          importedDecks[name] = { uk: [...new Set(list.map(norm).filter(id => importedCards[id]))] };
+          importedDecks[safeDeckName(name)] = { uk: [...new Set(list.map(norm).filter(id => importedCards[id]))] };
         }
         if (!importedDecks.default) importedDecks.default = { uk: Object.keys(importedCards) };
         if (Object.keys(importedCards).length) {
@@ -5048,8 +5401,10 @@ syncLangPickers();
   } catch (e) {
     console.warn('Bootstrap skipped:', e.message);
   } finally {
-    const patched = applyLexiconToPool();
-    if (patched || cleaned) saveState();
+    // Always persist after bootstrap: syncDefaultDeck must bring the reserved deck up to the
+    // full pool even when the lexicon fetch failed and nothing else wrote.
+    applyLexiconToPool();
+    saveState();
     renderAll();
     syncLangPickers();
     hideBusy();
@@ -5068,6 +5423,8 @@ function enhanceSelect(select) {
   btn.setAttribute('aria-haspopup', 'listbox');
   btn.setAttribute('aria-expanded', 'false');
   if (select.title) btn.title = select.title;
+  const selectName = select.getAttribute('aria-label') || select.title;
+  if (selectName) btn.setAttribute('aria-label', selectName);
   btn.innerHTML = `<span class="deck-picker-label"></span><span class="deck-picker-caret">▾</span>`;
   const menu = document.createElement('div');
   menu.className = 'deck-picker-menu';
@@ -5077,6 +5434,9 @@ function enhanceSelect(select) {
   function updateLabel() {
     const sel = select.options[select.selectedIndex];
     labelEl.textContent = sel ? sel.textContent : '';
+    // applyI18n() updates the hidden select's label when the UI language changes.
+    const name = select.getAttribute('aria-label') || select.title;
+    if (name) btn.setAttribute('aria-label', name);
   }
   function buildMenu() {
     menu.innerHTML = '';
@@ -5084,19 +5444,40 @@ function enhanceSelect(select) {
       if (opt.disabled || opt.hidden) continue;
       const item = document.createElement('div');
       item.className = 'deck-picker-item';
+      item.tabIndex = -1;
       if (opt.value === select.value) item.classList.add('active');
       item.dataset.value = opt.value;
       item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', opt.value === select.value ? 'true' : 'false');
       item.innerHTML = `<span class="deck-picker-item-name"></span>`;
       item.firstChild.textContent = opt.textContent;
       item.addEventListener('click', () => {
         select.value = opt.value;
         select.dispatchEvent(new Event('change', { bubbles: true }));
         updateLabel();
-        closeMenu();
+        closeMenu(true);
+      });
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(true); }
+        else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+          e.preventDefault();
+          moveFocus(e.key);
+        }
       });
       menu.appendChild(item);
     }
+  }
+  const optionItems = () => [...menu.querySelectorAll('[role="option"]')];
+  function moveFocus(key) {
+    const items = optionItems();
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement);
+    let next = 0;
+    if (key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % items.length;
+    else if (key === 'ArrowUp') next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
+    else if (key === 'End') next = items.length - 1;
+    items[next].focus();
   }
   let _openedAt = 0, _openW = 0;
   function openMenu() {
@@ -5110,19 +5491,31 @@ function enhanceSelect(select) {
     menu.style.minWidth = `${Math.round(r.width)}px`;
     _openedAt = Date.now();
     _openW = window.innerWidth;
+    const items = optionItems();
+    (items.find((item) => item.classList.contains('active')) || items[0])?.focus();
   }
-  function closeMenu() {
+  function closeMenu(restoreFocus = false) {
     menu.hidden = true;
     btn.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) btn.focus();
   }
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     menu.hidden ? openMenu() : closeMenu();
   });
+  btn.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (menu.hidden) openMenu(); else moveFocus(e.key);
+    } else if (e.key === 'Escape' && !menu.hidden) {
+      e.preventDefault();
+      closeMenu(true);
+    }
+  });
   document.addEventListener('click', (e) => {
     if (!menu.hidden && !wrap.contains(e.target) && !menu.contains(e.target)) closeMenu();
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) closeMenu(true); });
   window.addEventListener('scroll', () => {
     if (menu.hidden) return;
     if (Date.now() - _openedAt < 400) return;
@@ -5137,13 +5530,20 @@ function enhanceSelect(select) {
   // Keep label in sync when external code changes the select (e.g., poolClearBtn resetting filters,
   // or renderPoolCategoryOptions repopulating the option list).
   select.addEventListener('change', updateLabel);
-  new MutationObserver(updateLabel).observe(select, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] });
+  new MutationObserver(updateLabel).observe(select, { childList: true, subtree: true, attributes: true, attributeFilter: ['value', 'aria-label'] });
+  // Setting `select.value` from script changes selectedness, not an attribute, so the observer
+  // above does not fire. Callers that do that can refresh the visible label through this hook.
+  select._syncEnhancedLabel = updateLabel;
   // Hide the native select but keep it in DOM so existing handlers still see canonical state.
   select.style.display = 'none';
   select.parentElement.insertBefore(wrap, select);
   wrap.appendChild(btn);
   wrap.appendChild(menu);
   updateLabel();
+}
+function syncEnhancedLabel(id) {
+  const el = document.getElementById(id);
+  if (el && typeof el._syncEnhancedLabel === 'function') el._syncEnhancedLabel();
 }
 ['poolCategory', 'poolStatus', 'poolSort', 'setProvider'].forEach(id => {
   const el = document.getElementById(id);
@@ -5164,7 +5564,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   let startX = 0, startY = 0, tracking = false;
   surface.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) return;
-    if (e.target.closest('button, input, textarea, select, .pool-list, .card-list, .deck-picker-menu, .quiz, #busyOverlay')) return;
+    if (e.target.closest('button, input, textarea, select, .pool-list, .card-list, .cat-filter-scroll, .deck-picker-menu, .quiz, #busyOverlay')) return;
     tracking = true;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
@@ -5193,8 +5593,11 @@ function attachLongPress(el, fn, ms = 500) {
   let timer = null, startX = 0, startY = 0, fired = false;
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   el.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
+    // Reset before the guards: a long-press that fired earlier must not swallow the next control tap.
     fired = false;
+    if (e.touches.length !== 1) return;
+    // A press that starts on an editable cell, a control, or the word itself is not a removal.
+    if (e.target.closest('input, textarea, select, button, a, .lang-cell, .row-cb')) return;
     startX = e.touches[0].clientX; startY = e.touches[0].clientY;
     cancel();
     timer = setTimeout(() => { fired = true; hapticTick(); fn(e); }, ms);
