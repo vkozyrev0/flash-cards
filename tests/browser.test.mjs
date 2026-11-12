@@ -203,11 +203,48 @@ try {
   check('adding an existing word creates the batch deck', typeof activeDeck === 'string' && activeDeck.startsWith('Deck '), activeDeck);
   check('the new deck holds the existing card', (await main.evaluate('state.decks[state.active].uk.length')) >= 1);
 
+  // Bulk-select must keep keyboard focus where the user put it, not drop it to <body>.
+  await main.evaluate("document.querySelector('.tab[data-tab=\"quiz\"]').click()");
+  await sleep(150);
+  await main.evaluate("(() => { const cb = document.querySelector('#deckCardsList .pool-row input[type=checkbox]'); cb.focus(); cb.click(); })()");
+  await sleep(120);
+  check('selecting a card keeps focus in the list',
+    await main.evaluate("document.activeElement.matches('#deckCardsList input[type=checkbox]') && !!document.querySelector('#deckCardsList .pool-row.sel')"),
+    await main.evaluate("document.activeElement.tagName + '.' + document.activeElement.className"));
+  check('the bulk bar reports the selection', await main.evaluate("!document.getElementById('deckBulkBar').classList.contains('hidden')"));
+  check('the selection count is announced', (await main.evaluate("document.getElementById('countLive').textContent")).includes('selected'), await main.evaluate("document.getElementById('countLive').textContent"));
+  await main.evaluate("(() => { const cb = document.querySelector('#deckCardsList .pool-row input[type=checkbox]'); cb.click(); })()");
+  await sleep(80);
+
   // Reload proves the new deck and the edit persisted through localStorage.
   await main.send('Page.reload');
   await main.waitFor("document.readyState === 'complete'");
   await main.waitFor(STATE_LOADED, 30000);
   check('state persists across reload', (await main.evaluate('state.active')) === activeDeck, await main.evaluate('state.active'));
+
+  // New deck is a visible action on the Decks tab, not a hidden legacy button.
+  await main.evaluate("document.querySelector('.tab[data-tab=\"decks\"]').click()");
+  await sleep(200);
+  await main.evaluate("document.getElementById('manageNewDeck').click()");
+  await sleep(200);
+  await main.evaluate("(() => { const i = document.getElementById('appNoticeInput'); i.value = 'Fresh deck'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()");
+  await sleep(350);
+  check('the New deck action creates a deck', await main.evaluate("!!state.decks['Fresh deck']"));
+  check('the new deck row takes focus',
+    await main.evaluate("document.activeElement.classList.contains('manage-rename') && document.activeElement.closest('.deck-pick-row').querySelector('.deck-pick-name').textContent === 'Fresh deck'"),
+    await main.evaluate("document.activeElement.className"));
+
+  // A validation notice must stay open. A close event queued by the previous dialog used to
+  // arrive after the new one opened and dismiss it.
+  await main.evaluate("document.getElementById('manageNewDeck').click()");
+  await sleep(200);
+  await main.evaluate("(() => { const i = document.getElementById('appNoticeInput'); i.value = 'Fresh deck'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()");
+  await sleep(350);
+  check('a duplicate deck name shows a notice that stays open',
+    await main.evaluate("document.getElementById('appNoticeModal').open && document.getElementById('appNoticeMsg').textContent.includes('Fresh deck')"),
+    await main.evaluate("document.getElementById('appNoticeMsg').textContent"));
+  await main.evaluate("document.getElementById('appNoticeOk').click()");
+  await sleep(150);
 
   const swInfo = await main.evaluate(`(async () => {
     await navigator.serviceWorker.ready;
@@ -218,6 +255,25 @@ try {
   })()`);
   check('service worker controls the page', swInfo.controlled);
   check('raster icons are precached', ['/icon-180.png', '/icon-192.png', '/icon-512.png'].every((p) => swInfo.urls.includes(p)), swInfo.urls.join(','));
+
+  // Progress is written to its own key so answering a card does not serialize the whole pool.
+  // It must still reach the card on the next load, on top of the full state.
+  const progress = await main.evaluate(`(() => {
+    const id = Object.keys(state.cards)[0];
+    Object.assign(state.cards[id], { streak: 4, nextDue: Date.now() + 1e6, lastSeen: Date.now(), rightCount: 4, wrongCount: 0 });
+    saveProgress();
+    const raw = localStorage.getItem('ukr-cards-v3-progress');
+    return { id, bytes: raw.length, stateBytes: localStorage.getItem('ukr-cards-v3').length, entries: Object.keys(JSON.parse(raw).p).length };
+  })()`);
+  check('progress writes a key that does not scale with the pool',
+    progress.bytes > 0 && progress.entries >= 1 && progress.bytes * 4 < progress.stateBytes,
+    `${progress.bytes}B vs ${progress.stateBytes}B state`);
+
+  await main.send('Page.navigate', { url: APP });
+  await main.waitFor("document.readyState === 'complete'");
+  await main.waitFor(STATE_LOADED, 40000);
+  const survived = await main.evaluate(`(() => { const c = state.cards[${JSON.stringify(progress.id)}]; return c && c.streak; })()`);
+  check('progress survives a reload through the overlay', survived === 4, String(survived));
 
   // A second tab makes a newer save; the first tab is now stale and must refuse to overwrite it.
   const second = await connectPage((await openTarget()).webSocketDebuggerUrl);
@@ -241,6 +297,15 @@ try {
   check('a stale tab refuses to overwrite and warns',
     newer.active === 'CrossTab' && stale.warned === true && stale.active === 'CrossTab' && stale.lang === 'en',
     JSON.stringify({ newer, stale }));
+  // The progress-only path goes through the same revision guard, or two tabs would clobber
+  // each other's answers while both look like they saved.
+  const staleProgress = await main.evaluate(`(() => {
+    _savedRev = 100;
+    const before = localStorage.getItem('ukr-cards-v3-progress');
+    saveProgress();
+    return { unchanged: localStorage.getItem('ukr-cards-v3-progress') === before };
+  })()`);
+  check('a stale tab also refuses a progress-only write', staleProgress.unchanged === true, JSON.stringify(staleProgress));
   second.close();
 
   // Upgrade path: a pre-rekey state holds the old surviving sentence under the plain id. The load
@@ -291,6 +356,32 @@ try {
     }
     return false;
   });
+  // A tall window must not end in dead space below the list: the list fills what the sections
+  // above it leave. The gap is the section's own padding and margin, not empty page.
+  await main.send('Emulation.setDeviceMetricsOverride', { width: 2000, height: 1122, deviceScaleFactor: 1, mobile: false });
+  await main.evaluate("showTab('words')");
+  await sleep(400);
+  const wordsFill = await main.evaluate(`(() => {
+    const tab = document.querySelector('.tab-content.active');
+    const list = document.getElementById('poolList');
+    const t = tab.getBoundingClientRect(), r = list.getBoundingClientRect();
+    return { listH: Math.round(r.height), gap: Math.round(t.bottom - r.bottom), tabScroll: tab.scrollHeight - tab.clientHeight };
+  })()`);
+  check('the words list fills a tall viewport', wordsFill.gap < 60 && wordsFill.listH > 320 && wordsFill.tabScroll <= 1,
+    JSON.stringify(wordsFill));
+
+  await main.evaluate("showTab('quiz')");
+  await sleep(400);
+  const quizFill = await main.evaluate(`(() => {
+    const tab = document.querySelector('.tab-content.active');
+    const list = document.getElementById('deckCardsList');
+    const t = tab.getBoundingClientRect(), r = list.getBoundingClientRect();
+    return { listH: Math.round(r.height), gap: Math.round(t.bottom - r.bottom), tabScroll: tab.scrollHeight - tab.clientHeight };
+  })()`);
+  check('the quiz contents list fills a tall viewport', quizFill.gap < 60 && quizFill.listH > 280 && quizFill.tabScroll <= 1,
+    JSON.stringify(quizFill));
+  await main.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+
   check('no console errors or page exceptions', errors.length === 0, errors.map((e) => JSON.stringify(e.params).slice(0, 160)).join(' | '));
 
   const shot = await main.send('Page.captureScreenshot', { format: 'png' });

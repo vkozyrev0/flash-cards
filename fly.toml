@@ -1,9 +1,9 @@
-# Fly.io deployment for the translation server (server.mjs) in API-only mode: the app is served from
-# the user's own disk or host, and only translation is remote. The DeepSeek key is a secret, never an
-# [env] entry:
-#   fly secrets set DEEPSEEK_API_KEY=...            (see README)
+# Fly.io deployment for the app and its translation server. The same image runs in two modes:
+# this file serves the site; SERVE_STATIC=0 makes it an API-only deployment for a static host.
+# The DeepSeek key is a secret, never an [env] entry:
+#   fly secrets set DEEPSEEK_API_KEY=...
 #   fly secrets set ALLOWED_ORIGINS=localhost,null
-app = "flash-cards-ukr"
+app = "ukr-flashcards"
 primary_region = "ams"
 
 [build]
@@ -12,13 +12,13 @@ primary_region = "ams"
 [env]
   PORT = "8080"
   HOST = "0.0.0.0"
-  # API-only: no app files in the image, only /api/* and robots.txt are served.
-  SERVE_STATIC = "0"
+  # Serve the app itself from this machine.
+  SERVE_STATIC = "1"
   DEEPSEEK_MODEL = "deepseek-flash"
   # Behind Fly's proxy, so per-client limits must read x-forwarded-for.
   TRUST_PROXY = "1"
-  # Only a locally-served app may call this from a browser (localhost any port, or file:// → null).
-  # Requests without an Origin (curl, monitors) are unaffected.
+  # Same-origin calls from the served app are always allowed; these cover local copies of the app
+  # (localhost any port, or file:// → null). Requests without an Origin (curl, monitors) are unaffected.
   ALLOWED_ORIGINS = "localhost,null"
   RATE_PER_MIN = "60"
   RATE_BURST = "20"

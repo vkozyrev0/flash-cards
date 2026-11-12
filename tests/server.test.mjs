@@ -316,6 +316,27 @@ await test('serves the app itself and refuses to serve its own source or tests',
   assert.equal((await fetch(`${main.base}/.gitignore`)).status, 404);
 });
 
+await test('static text is compressed and revalidated', async () => {
+  const port = Number(new URL(main.base).port);
+  const plain = await httpCall(port, '/language-cards.html', { headers: { 'accept-encoding': 'identity' } });
+  const gz = await httpCall(port, '/language-cards.html', { headers: { 'accept-encoding': 'gzip' } });
+  assert.equal(gz.status, 200);
+  assert.equal(gz.headers['content-encoding'], 'gzip');
+  assert.match(String(gz.headers.vary || ''), /accept-encoding/i);
+  assert.ok(
+    Number(gz.headers['content-length']) < Number(plain.headers['content-length']) / 2,
+    `${gz.headers['content-length']} vs ${plain.headers['content-length']}`,
+  );
+  const etag = gz.headers.etag;
+  assert.ok(etag, 'etag');
+  // Same file, same validator: the browser revalidates instead of re-downloading 2 MB.
+  const again = await httpCall(port, '/language-cards.html', { headers: { 'if-none-match': etag } });
+  assert.equal(again.status, 304);
+  assert.equal(again.headers['content-encoding'], undefined);
+  const br = await httpCall(port, '/language-cards.html', { headers: { 'accept-encoding': 'br' } });
+  assert.equal(br.headers['content-encoding'], 'br');
+});
+
 await test('path traversal is refused', async () => {
   // fetch() resolves dot segments before sending, so use the encoded spelling the server sees.
   const port = Number(new URL(main.base).port);

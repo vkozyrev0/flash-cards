@@ -38,6 +38,7 @@
 //   BOT_PATTERNS            extra comma-separated User-Agent substrings to treat as crawlers
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { gzipSync, brotliCompressSync } from 'node:zlib';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -476,6 +477,13 @@ const MIME = {
   '.md': 'text/plain; charset=utf-8',
 };
 
+// The app shell is 300 KB of HTML and the card bundle is 1.8 MB of JSON, both highly
+// repetitive text. Compressing them is the difference between a 2.2 MB and a ~400 KB first load.
+const COMPRESS_EXT = new Set(['.html', '.json', '.js', '.mjs', '.css', '.svg', '.txt', '.md']);
+const LONG_CACHE_EXT = new Set(['.png', '.jpg', '.ico', '.woff2']);
+// Compressing the bundle costs ~100 ms; keep the result for the file's lifetime on disk.
+const COMPRESS_CACHE = new Map();
+
 // Server source and tests are not part of the app payload; dotfiles are never served.
 const BLOCKED = [/^\/server\.mjs$/, /^\/tests(\/|$)/, /(^|\/)\./];
 
@@ -504,12 +512,40 @@ async function serveStatic(req, res, pathname) {
   try {
     const info = await stat(file);
     if (!info.isFile()) throw new Error('not a file');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'content-type': MIME[extname(file)] || 'application/octet-stream',
-      'content-length': body.length,
-      'cache-control': 'no-cache',
-    });
+    const ext = extname(file).toLowerCase();
+    // Weak validator from size + mtime: the browser revalidates instead of re-downloading.
+    const etag = `W/"${info.size.toString(16)}-${Math.floor(info.mtimeMs).toString(16)}"`;
+    const headers = {
+      'content-type': MIME[ext] || 'application/octet-stream',
+      etag,
+      'cache-control': LONG_CACHE_EXT.has(ext) ? 'public, max-age=86400' : 'no-cache',
+    };
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, headers);
+      res.end();
+      return;
+    }
+    let body = await readFile(file);
+    if (COMPRESS_EXT.has(ext) && body.length > 1024) {
+      const key = `${file}:${info.mtimeMs}`;
+      let encoded = COMPRESS_CACHE.get(key);
+      if (!encoded) {
+        encoded = { gzip: gzipSync(body), br: brotliCompressSync(body) };
+        if (COMPRESS_CACHE.size > 12) COMPRESS_CACHE.clear();
+        COMPRESS_CACHE.set(key, encoded);
+      }
+      const accept = String(req.headers['accept-encoding'] || '');
+      if (/\bbr\b/.test(accept)) {
+        body = encoded.br;
+        headers['content-encoding'] = 'br';
+      } else if (/\bgzip\b/.test(accept)) {
+        body = encoded.gzip;
+        headers['content-encoding'] = 'gzip';
+      }
+      headers.vary = 'accept-encoding';
+    }
+    headers['content-length'] = body.length;
+    res.writeHead(200, headers);
     res.end(body);
   } catch {
     send(res, 404, { error: 'not found' });
