@@ -360,8 +360,10 @@ const loadFrom = (() => {
     'let store = {};',
     "const localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } };",
     "const STORAGE_KEY = 'ukr-cards-v3';",
+    "const PROGRESS_KEY = 'ukr-cards-v3-progress';",
     extractDecl(script, 'const', 'DEFAULT_SETTINGS'),
-    ...['trimText', 'norm', 'normalizeCard', 'sameCard', 'addCardUnique', 'normalizeDeletedIds', 'safeDeckName', 'activeDeckIsValid', 'normalizeSettings', 'loadState']
+    extractDecl(script, 'const', 'PROGRESS_FIELDS'),
+    ...['trimText', 'norm', 'normalizeCard', 'sameCard', 'addCardUnique', 'normalizeDeletedIds', 'safeDeckName', 'activeDeckIsValid', 'normalizeSettings', 'decodeCards', 'applyProgressOverlay', 'loadState']
       .map((n) => extractDecl(script, 'function', n)),
   ].join('\n');
   return new Function(`${statePrelude}
@@ -398,7 +400,94 @@ test('loadState creates a default deck when the state has none', () => {
   });
   assert.equal(s.active, 'default');
   assert.equal(s.cards.x.uk, 'x');
-  assert.deepEqual(s.decks.default, { uk: [] });
+  assert.deepEqual(s.decks.default, { uk: ['x'] }, 'the default deck is the whole pool');
+});
+
+test('only studied cards go into the progress key', () => {
+  const progressMap = new Function(`${extractDecl(script, 'const', 'PROGRESS_FIELDS')}
+${extractDecl(script, 'function', 'progressMap')}
+return progressMap;`)();
+  const out = progressMap({
+    a: { id: 'a', uk: 'a' },
+    b: { id: 'b', uk: 'b', streak: 2, nextDue: 9, lastSeen: 5, rightCount: 2, wrongCount: 0 },
+  });
+  assert.deepEqual(Object.keys(out), ['b'], 'an untouched card must not be written');
+  assert.deepEqual(out.b, [2, 9, 5, 2, 0]);
+});
+
+test('progress newer than the full state is applied on load', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards: { x: { id: 'x', uk: 'x', en: 'ex', streak: 1 } }, decks: { default: { uk: ['x'] } }, rev: 100 }),
+    'ukr-cards-v3-progress': JSON.stringify({ rev: 100, p: { x: [4, 5000, 900, 4, 1] } }),
+  });
+  assert.equal(s.cards.x.streak, 4);
+  assert.equal(s.cards.x.nextDue, 5000);
+  assert.equal(s.cards.x.lastSeen, 900);
+  assert.equal(s.cards.x.rightCount, 4);
+  assert.equal(s.cards.x.wrongCount, 1);
+  assert.equal(s.cards.x.en, 'ex', 'the overlay must not touch card content');
+});
+
+test('progress older than the full state is ignored', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards: { x: { id: 'x', uk: 'x', streak: 3 } }, decks: { default: { uk: ['x'] } }, rev: 200 }),
+    'ukr-cards-v3-progress': JSON.stringify({ rev: 100, p: { x: [1, 1, 1, 1, 0] } }),
+  });
+  assert.equal(s.cards.x.streak, 3, 'a full save is newer than this progress write');
+});
+
+test('progress for a card that left the pool is ignored', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards: { x: { id: 'x', uk: 'x' } }, decks: { default: { uk: ['x'] } }, rev: 1 }),
+    'ukr-cards-v3-progress': JSON.stringify({ rev: 9, p: { gone: [2, 2, 2, 2, 0] } }),
+  });
+  assert.equal(s.cards.gone, undefined);
+  assert.equal(s.cards.x.streak, 0);
+});
+
+test('a corrupt progress key cannot break the load', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({ cards: { x: { id: 'x', uk: 'x', streak: 2 } }, decks: { default: { uk: ['x'] } }, rev: 5 }),
+    'ukr-cards-v3-progress': '{not json',
+  });
+  assert.equal(s.cards.x.streak, 2);
+});
+
+test('cards round-trip through the stored row form', () => {
+  const fns = new Function(`${extractDecl(script, 'function', 'encodeCards')}
+${extractDecl(script, 'function', 'decodeCards')}
+return { encodeCards, decodeCards };`)();
+  const cards = {
+    'привіт': { id: 'привіт', uk: 'привіт', ru: 'привет', en: 'hello', fi: 'hei', categories: ['phrase', 'greeting'], addedAt: 5, streak: 2, nextDue: 9, lastSeen: 4, rightCount: 2, wrongCount: 1 },
+    'лист#leaf': { id: 'лист#leaf', uk: 'лист', ru: 'лист', en: 'leaf', fi: 'lehti', categories: [], addedAt: 6, streak: 0, nextDue: 0, lastSeen: 0, rightCount: 0, wrongCount: 0 },
+  };
+  assert.deepEqual(fns.decodeCards(fns.encodeCards(cards)), cards);
+});
+
+test('loadState reads the stored row form', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({
+      cards: [['привіт', 'привіт', 'привет', 'hello', 'hei', 'phrase', 5, 2, 9, 4, 2, 1]],
+      decks: { default: { uk: [] }, Deck: { uk: ['привіт'] } },
+      active: 'Deck',
+    }),
+  });
+  assert.equal(s.cards['привіт'].en, 'hello');
+  assert.deepEqual(s.cards['привіт'].categories, ['phrase']);
+  assert.equal(s.cards['привіт'].streak, 2);
+  assert.deepEqual(s.decks.default.uk, ['привіт'], 'the default deck is rebuilt from the cards');
+  assert.equal(s.active, 'Deck');
+});
+
+test('the row form keeps a homonym id that differs from the word', () => {
+  const s = loadFrom({
+    'ukr-cards-v3': JSON.stringify({
+      cards: [['лист#leaf', 'лист', '', 'leaf', '', '', 1, 0, 0, 0, 0, 0]],
+      decks: { default: { uk: [] } },
+    }),
+  });
+  assert.ok(s.cards['лист#leaf'], 'a homonym must not be keyed by its word');
+  assert.equal(s.cards['лист#leaf'].uk, 'лист');
 });
 
 test('known-bad corpus rows were patched', () => {
@@ -444,6 +533,19 @@ test('every element id the script looks up exists in the markup', () => {
     ...[...script.matchAll(/getElementById\('([^']+)'\)/g)].map((m) => m[1]),
   ]);
   assert.deepEqual([...referenced].filter((id) => !declared.has(id)), []);
+});
+
+test('the deck picker keeps its search field outside the listbox', () => {
+  // A listbox may only contain options and groups; the search input sits in the popup instead.
+  const picker = html.slice(html.indexOf('id="deckPicker"'), html.indexOf('id="activeDeckName"'));
+  assert.match(picker, /id="deckPickerItems" role="listbox"/);
+  assert.ok(!/id="deckPickerMenu"[^>]*role="listbox"/.test(picker), 'the popup is not a listbox');
+  assert.match(picker, /aria-controls="deckPickerItems"/);
+});
+
+test('results header cells declare their scope', () => {
+  const head = html.slice(html.indexOf('<table id="resultsTable">'), html.indexOf('</thead>'));
+  assert.equal((head.match(/<th scope="col"/g) || []).length, 5);
 });
 
 const STRINGS = (() => {
@@ -516,6 +618,26 @@ test('the help mockups paint a theme-aware surface', () => {
   assert.ok(at >= 0, '.help-mock rule');
   const rule = html.slice(at, html.indexOf('}', at));
   assert.match(rule, /background: var\(--(?:bg-2|card-bg|card-bg-2)\)/);
+});
+
+test('forced-colors mode restores selection state with shape', () => {
+  // Forced palettes force every author background to Canvas, so fill-only state disappears.
+  const at = html.indexOf('@media (forced-colors: active)');
+  assert.ok(at >= 0, 'forced-colors block');
+  const block = html.slice(at, html.indexOf('\n  }', at));
+  for (const sel of ['.tab.active', '.pill:has(input:checked)', '.deck-picker-item.active', '.choice.wrong', '.pool-row.sel']) {
+    assert.ok(block.includes(sel), `${sel} must keep a state ring`);
+  }
+  assert.match(block, /outline: 2px solid Highlight/);
+  assert.match(block, /outline: 2px dashed CanvasText/);
+  // Focus must not look like selection.
+  assert.match(block, /outline: 3px solid CanvasText/);
+});
+
+test('text selection takes the palette', () => {
+  assert.match(html, /::selection \{[^}]*background: var\(--sel-bg\)/);
+  assert.match(html, /--sel-bg: rgba\(28, 46, 91, 0\.22\);/);
+  assert.match(html, /--sel-bg: rgba\(111, 156, 243, 0\.32\);/);
 });
 
 const readTemplate = (src, marker) => {

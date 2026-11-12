@@ -1,6 +1,6 @@
 # Ukrainian Flash Cards
 
-A local-first PWA for studying Ukrainian vocabulary with parallel Russian, English, and Finnish. Progress uses a simple spaced-repetition schedule and stays in this browser (`localStorage` key `ukr-cards-v3`). Nothing is uploaded except translation requests when you add new words.
+A local-first PWA for studying Ukrainian vocabulary with parallel Russian, English, and Finnish. Progress uses a simple spaced-repetition schedule and stays in this browser (`localStorage` keys `ukr-cards-v3` for the pool and `ukr-cards-v3-progress` for learning progress, so answering a card writes kilobytes instead of the whole pool). Nothing is uploaded except translation requests when you add new words.
 
 ## Files
 
@@ -14,7 +14,7 @@ A local-first PWA for studying Ukrainian vocabulary with parallel Russian, Engli
 - `icon-180.png`, `icon-192.png`, `icon-512.png` — raster icons for iOS and the PWA manifest
 - `robots.txt` — crawl policy (API and bundles disallowed; the server enforces the same paths)
 - `server.mjs` — optional translation server (static host + `/api/translate` proxy; holds the DeepSeek key)
-- `Dockerfile`, `.dockerignore`, `fly.toml` — the API-only Fly.io deployment (see below)
+- `Dockerfile`, `.dockerignore`, `fly.toml` — the Fly.io deployment: one machine serves the app and proxies translation (see below)
 - `tests/logic.test.mjs` — logic checks (no browser)
 - `tests/server.test.mjs` — server checks (no browser)
 - `tests/browser.test.mjs` — opt-in headless browser checks (needs Edge/Chrome; set `EDGE_PATH` if it is not the default Windows path)
@@ -80,6 +80,11 @@ returns the model, the configured limits, the caller's remaining quota, the live
 connection counts, and the refusal counters (never the key). Answers are cleaned and validated
 server-side (empty, identical-to-source and wrong-script results are rejected), mirroring the
 client-side checks.
+
+Static delivery: HTML, JSON, JS, CSS and SVG are compressed with brotli or gzip (whichever the client
+accepts) and carry a weak `ETag`, so a repeat visit revalidates with a 304 instead of re-downloading
+the ~2.2 MB shell and bundle. Icons are cached for a day. Compressed bodies are cached in memory for
+the lifetime of the file on disk.
 
 Deploy it anywhere that runs Node (Fly.io, Railway, Render, a VPS) — it is not a static host, because
 the key lives in the process environment. `sw.js` never caches `/api/`, so health checks and
@@ -169,7 +174,9 @@ sees the CDN address rather than the visitor.
 
 ## Data
 
-- Export / import a JSON backup from Settings. Import offers **Merge**, **Replace all**, or **Cancel**.
+- Export / import a JSON backup from Settings. Import offers **Merge**, **Replace all**, or **Cancel**. A backup is the full state, so it carries learning progress.
+- Answering a card writes only `ukr-cards-v3-progress`; structural changes (adding, deleting, decks, settings, import) rewrite `ukr-cards-v3`. Both keys share one revision counter, so a tab whose data is stale still refuses to overwrite a newer one — for progress writes too — and asks you to reload.
+- `ukr-cards-v3` stores cards as rows (`[id, uk, ru, en, fi, categories, addedAt, streak, nextDue, lastSeen, rightCount, wrongCount]`) instead of objects, and leaves the `default` deck empty because it is the whole pool and is rebuilt on load. That keeps the full 5,875-word state at about 620 KB instead of 1.4 MB. Older object-shaped states are still read; the next save rewrites them in the row form. Exports stay in the object form.
 - If the browser storage quota is full, the app warns instead of failing silently — export a backup, then delete unused words.
 - Installed copies update the HTML, card JSON, and lexicon over the network (service worker cache `ukr-cards-v3`). The icon and other cached assets are cache-first. Browsers fetch `manifest.json` outside the service worker, so the SW's copy does not affect which manifest they read.
 - A state saved by an older bundle is migrated when it loads: the cards the old bundle collapsed are moved to their distinct ids. Run **Sync with bundle** once after the upgrade to pull the plain words in beside them.
@@ -177,6 +184,20 @@ sees the CDN address rather than the visitor.
 ## Deploying
 
 Any static host works. HTML and JSON are fetched network-first, so shipped updates reach installed users without a cache-name bump. Bump `CACHE_VERSION` in `sw.js` when changing the cached icons. Browsers fetch `manifest.json` outside the service worker, so the manifest needs no bump for the browser to see it (the SW still precaches a copy for the offline shell).
+
+### Fly.io
+
+The same image runs in two modes. `fly.toml` as committed serves the app itself, so one machine is the whole site:
+
+```
+fly apps create <name>          # once
+fly secrets set DEEPSEEK_API_KEY=...   # optional: enables the "App server" provider
+fly deploy
+```
+
+Live at `https://<name>.fly.dev`. The machine is the smallest Fly offers (`shared-cpu-1x`, 256 MB) and stops when idle (`min_machines_running = 0`); the first request after a stop pays a one-to-two second cold start. In-memory rate counters reset on each cold start, so `GLOBAL_DAILY_CAP` bounds one warm window rather than a UTC day.
+
+To use Fly only as a translation API and keep the app on your own disk, set `SERVE_STATIC = "0"` in `[env]` — then only `/api/*` and `robots.txt` are served. Either way the bot policy refuses named crawlers and headless browsers on the card bundle; ordinary browsers are unaffected.
 
 ## Privacy
 
